@@ -1,34 +1,39 @@
 # Code of Conduct
 
-## Our Pledge
-In the interest of fostering an open and welcoming environment, we as contributors and maintainers pledge to make participation in this project **a harassment-free experience for everyone**, regardless of age, body size, disability, ethnicity, gender identity and expression, level of experience, nationality, personal appearance, race, religion, or sexual identity and orientation.
+We want this project to be a **friendly, welcoming, and safe place for everyone**, especially students, teachers, and contributors from all backgrounds.
 
-## Our Standards
-Examples of behavior that contributes to creating a positive environment include:
+By participating in this project, you agree to follow this Code of Conduct.
 
-- Using welcoming and inclusive language
-- Being respectful of differing viewpoints and experiences
-- Gracefully accepting constructive criticism
-- Focusing on what is best for the community
-- Showing empathy toward other community members
+---
 
-Examples of unacceptable behavior by participants include:
+## Be Respectful
+- Treat everyone with kindness and respect.
+- Avoid personal attacks, hate speech, or offensive language.
+- Be patient and helpful, especially with beginners.
 
-- The use of sexualized language or imagery
-- Personal attacks
-- Trolling or insulting/derogatory comments
-- Public or private harassment
-- Publishing others’ private information, such as a physical or email address, without permission
-- Other conduct which could reasonably be considered inappropriate in a professional setting
+## Be Inclusive
+- Everyone is welcome regardless of age, gender, race, nationality, religion, sexual orientation, or skill level.
+- Encourage participation and collaboration from all contributors.
 
-## Enforcement Responsibilities
-Project maintainers are responsible for clarifying standards of acceptable behavior and will take appropriate and fair corrective action in response to any instances of unacceptable behavior.
+## Communicate Constructively
+- Give and accept feedback politely.
+- Focus on ideas, not people.
+- Avoid trolling, arguing, or being disruptive.
 
-## Scope
-This Code of Conduct applies both within project spaces and in public spaces when an individual is representing the project or its community.
+## No Harassment or Abuse
+- Harassment, bullying, or threats are not allowed.
+- Do not post or share anyone’s private information.
+- Do not use the project to harm or intimidate others.
 
-## Enforcement
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project maintainers at [YOUR EMAIL HERE]. All complaints will be reviewed and investigated and will result in a response that is deemed necessary and appropriate to the circumstances.
+## Report Problems
+- If you see or experience inappropriate behavior, contact the project maintainers at: **[ykhat1@brockport.edu]**.
+- Reports will be handled respectfully and confidentially.
 
-## Attribution
-This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org), version 2.1, available at [https://www.contributor-covenant.org/version/2/1/code_of_conduct/](https://www.contributor-covenant.org/version/2/1/code_of_conduct/).
+## Summary
+- Be kind, inclusive, and professional.
+- Focus on learning, collaboration, and helping each other.
+- Keep this a safe space for education and growth.
+
+---
+
+This Code of Conduct is adapted from the [Contributor Covenant](https://www.contributor-covenant.org), version 2.1.
