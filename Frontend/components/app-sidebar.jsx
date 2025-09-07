@@ -34,6 +34,7 @@ import {
   IconSettings,
   IconHelp,
   IconSearch,
+  IconQuestionMark,
 } from "@tabler/icons-react";
 
 export function AppSidebar(props) {
@@ -48,6 +49,16 @@ export function AppSidebar(props) {
       icon: IconDashboard,
     },
     {
+      title: "Documents",
+      url: `/dashboard/documents?module=${module}`,
+      icon: IconFolder,
+    },
+    {
+      title: "Questions",
+      url: `/dashboard/questions?module=${module}`,
+      icon: IconQuestionMark,
+    },
+    {
       title: "Students",
       url: `/dashboard/students?module=${module}`,
       icon: IconChartBar,
@@ -55,7 +66,7 @@ export function AppSidebar(props) {
     {
       title: "Tests",
       url: `/dashboard/tests?module=${module}`,
-      icon: IconFolder,
+      icon: IconListDetails,
     },
     {
       title: "Analytics",

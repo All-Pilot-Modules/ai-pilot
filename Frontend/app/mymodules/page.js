@@ -61,8 +61,8 @@ export default function MyModules() {
     }
   };
 
-  const generateModuleUrl = (accessCode) => {
-    return `${window.location.origin}/join/${accessCode}`;
+  const generateModuleUrl = (module) => {
+    return `${window.location.origin}/${module.teacher_id}/${module.name}`;
   };
 
   const copyToClipboard = async (text, type, moduleId) => {
@@ -102,14 +102,14 @@ export default function MyModules() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <div className="max-w-7xl mx-auto px-6 py-12">
         <div className="mb-10">
-          <h1 className="text-2xl font-semibold text-gray-900 mb-2">My Modules</h1>
-          <p className="text-gray-600">Create and manage your modules</p>
+          <h1 className="text-2xl font-semibold text-foreground mb-2">My Modules</h1>
+          <p className="text-muted-foreground">Create and manage your modules</p>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Create Module Form - Left Side */}
           <div className="lg:col-span-1">
             <Card className="sticky top-6">
@@ -148,79 +148,93 @@ export default function MyModules() {
             </Card>
           </div>
 
-          {/* Modules List - Right Side */}
-          <div className="lg:col-span-2">
-            <div className="mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Your Modules</h2>
-              <p className="text-sm text-gray-600">Manage your created modules</p>
+          {/* Modules Grid - Right Side */}
+          <div className="lg:col-span-3">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-foreground mb-2">Your Modules</h2>
+              <p className="text-muted-foreground">Manage and share your created modules</p>
             </div>
             
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {modules.map((module) => (
-                <Card key={module.id} className="hover:shadow-md transition-shadow">
+                <Card key={module.id} className="group hover:shadow-lg transition-all duration-200 border-border bg-card/50 backdrop-blur-sm">
                   <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg text-gray-900 mb-2">{module.name}</h3>
+                    <div className="space-y-4">
+                      {/* Header */}
+                      <div className="text-center border-b border-border pb-4">
+                        <h3 className="font-bold text-xl text-foreground mb-1">{module.name}</h3>
                         {module.description && (
-                          <p className="text-gray-600 text-sm mb-3">{module.description}</p>
+                          <p className="text-muted-foreground text-sm">{module.description}</p>
                         )}
-                        
-                        {/* Access Code */}
-                        <div className="mb-3">
-                          <Label className="text-xs text-gray-500 mb-1 block">Access Code</Label>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono bg-gray-100 px-2 py-1 rounded text-sm">
-                              {module.access_code}
-                            </span>
+                      </div>
+                      
+                      {/* Access Code Section */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Access Code</Label>
+                        <div className="flex items-center gap-2">
+                          <span className="flex-1 font-mono bg-muted/80 px-3 py-2 rounded-md text-center text-lg font-bold text-foreground border-2 border-dashed border-border">
+                            {module.access_code}
+                          </span>
+                          <div className="flex gap-1">
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => copyToClipboard(module.access_code, 'code', module.id)}
-                              className="h-7 px-2"
+                              className="h-9 w-9 p-0"
+                              title="Copy access code"
                             >
                               {copiedItems[`${module.id}-code`] ? (
-                                <Check className="w-3 h-3" />
+                                <Check className="w-4 h-4 text-green-600" />
                               ) : (
-                                <Copy className="w-3 h-3" />
+                                <Copy className="w-4 h-4" />
                               )}
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => regenerateAccessCode(module.id)}
-                              className="h-7 px-2"
+                              className="h-9 w-9 p-0"
                               title="Regenerate access code"
                             >
-                              <RotateCcw className="w-3 h-3" />
+                              <RotateCcw className="w-4 h-4" />
                             </Button>
                           </div>
                         </div>
+                      </div>
 
-                        {/* Module URL */}
-                        <div className="mb-3">
-                          <Label className="text-xs text-gray-500 mb-1 block">Join URL</Label>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-blue-600 bg-blue-50 px-2 py-1 rounded font-mono truncate flex-1">
-                              {generateModuleUrl(module.access_code)}
-                            </span>
+                      {/* Join URL Section */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Join URL</Label>
+                        <div className="relative">
+                          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-700 dark:text-blue-300 font-mono break-all">
+                              {generateModuleUrl(module)}
+                            </p>
+                          </div>
+                          <div className="flex justify-center gap-2 mt-2">
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => copyToClipboard(generateModuleUrl(module.access_code), 'url', module.id)}
-                              className="h-7 px-2"
+                              onClick={() => copyToClipboard(generateModuleUrl(module), 'url', module.id)}
+                              className="flex-1 h-8"
                             >
                               {copiedItems[`${module.id}-url`] ? (
-                                <Check className="w-3 h-3" />
+                                <>
+                                  <Check className="w-3 h-3 mr-1 text-green-600" />
+                                  <span className="text-xs">Copied</span>
+                                </>
                               ) : (
-                                <Copy className="w-3 h-3" />
+                                <>
+                                  <Copy className="w-3 h-3 mr-1" />
+                                  <span className="text-xs">Copy</span>
+                                </>
                               )}
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => window.open(generateModuleUrl(module.access_code), '_blank')}
-                              className="h-7 px-2"
+                              onClick={() => window.open(generateModuleUrl(module), '_blank')}
+                              className="h-8 px-3"
                               title="Open in new tab"
                             >
                               <ExternalLink className="w-3 h-3" />
@@ -228,12 +242,15 @@ export default function MyModules() {
                           </div>
                         </div>
                       </div>
-                      
-                      <Button asChild className="ml-6">
-                        <Link href={`/dashboard?module=${encodeURIComponent(module.name)}`}>
-                          Manage
-                        </Link>
-                      </Button>
+
+                      {/* Actions */}
+                      <div className="pt-2 border-t border-border">
+                        <Button asChild size="lg" className="w-full group-hover:shadow-md transition-shadow font-semibold">
+                          <Link href={`/dashboard?module=${encodeURIComponent(module.name)}`}>
+                            🚀 Manage
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -241,9 +258,11 @@ export default function MyModules() {
             </div>
 
             {modules.length === 0 && (
-              <Card>
+              <Card className="border-border max-w-md mx-auto">
                 <CardContent className="py-12 text-center">
-                  <p className="text-gray-500">No modules yet. Create your first module using the form on the left.</p>
+                  <div className="text-6xl mb-4">📚</div>
+                  <p className="text-muted-foreground mb-2 font-medium">No modules yet</p>
+                  <p className="text-sm text-muted-foreground">Create your first module using the form above to get started.</p>
                 </CardContent>
               </Card>
             )}
