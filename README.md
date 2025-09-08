@@ -44,6 +44,7 @@ AI Education Pilot is a comprehensive educational technology platform designed t
 - **[LlamaIndex](https://www.llamaindex.ai/)** - Data framework for LLM applications
 - **[OpenAI](https://openai.com/)** - GPT models for AI-powered features
 - **[SQLAlchemy](https://www.sqlalchemy.org/)** - Python SQL toolkit and ORM
+- **[PostgreSQL](https://www.postgresql.org/)** - Advanced relational database
 - **[JWT](https://jwt.io/)** - JSON Web Tokens for secure authentication
 
 ### Frontend
@@ -52,6 +53,26 @@ AI Education Pilot is a comprehensive educational technology platform designed t
 - **[Tailwind CSS](https://tailwindcss.com/)** - Utility-first CSS framework
 - **[Radix UI](https://www.radix-ui.com/)** - Low-level UI primitives
 - **[Recharts](https://recharts.org/)** - Composable charting library
+
+### Database Architecture
+
+Our PostgreSQL database is designed for scalability and educational workflows:
+
+**🔗 [Interactive Database Diagram](https://dbdiagram.io/d/68b01146777b52b76cf1efaa)**
+
+<div align="center">
+  <a href="https://dbdiagram.io/d/68b01146777b52b76cf1efaa">
+    <img src="https://dbdiagram.io/d/68b01146777b52b76cf1efaa.png" alt="Database Schema Diagram" width="600" />
+  </a>
+</div>
+
+**Core Tables:**
+- **Users** - Students, teachers, administrators with role-based access
+- **Modules** - Courses and learning modules with access codes
+- **Documents** - Educational content (PDFs, PowerPoints, Word docs)
+- **Questions** - AI-generated questions from documents
+- **Student Answers** - Response tracking with multiple attempts
+- **AI Feedback** - Intelligent grading and personalized feedback
 
 ## 🚀 Getting Started
 
@@ -144,6 +165,7 @@ For detailed documentation, tutorials, and guides, visit our comprehensive [Wiki
 
 - [Getting Started Guide](https://github.com/All-Pilot-Modules/AI-PILOT2/wiki/Getting-Started)
 - [Installation Instructions](https://github.com/All-Pilot-Modules/AI-PILOT2/wiki/Installation-Guide)
+- [Database Schema](https://github.com/All-Pilot-Modules/AI-PILOT2/wiki/Database-Schema) | [Interactive Diagram](https://dbdiagram.io/d/68b01146777b52b76cf1efaa)
 - [API Documentation](https://github.com/All-Pilot-Modules/AI-PILOT2/wiki/AI-Integration)
 - [User Guides](https://github.com/All-Pilot-Modules/AI-PILOT2/wiki/Home)
 
