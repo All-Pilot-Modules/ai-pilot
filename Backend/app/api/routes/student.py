@@ -112,15 +112,18 @@ def get_assignment_questions(
     questions = get_questions_by_document_id(db, document_id)
     return questions
 
-# ✅ Submit answer for a question
-@router.post("/submit-answer", response_model=StudentAnswerOut)
+# ✅ Submit answer for a question with instant AI feedback
+@router.post("/submit-answer")
 def submit_student_answer(
     answer_data: StudentAnswerCreate,
     db: Session = Depends(get_db)
 ):
     """
-    Submit student answer for a question (first attempt only for now)
+    Submit student answer for a question with instant AI feedback on first attempt
     """
+    from app.services.ai_feedback import AIFeedbackService
+    from app.crud.question import get_question_by_id
+    
     # Check if answer already exists for this attempt
     existing_answer = get_student_answer(
         db, answer_data.student_id, answer_data.question_id, answer_data.attempt
@@ -130,10 +133,72 @@ def submit_student_answer(
         # Update existing answer
         update_data = StudentAnswerUpdate(answer=answer_data.answer)
         updated_answer = update_student_answer(db, existing_answer.id, update_data)
-        return updated_answer
+        created_answer = updated_answer
     else:
         # Create new answer
-        return create_student_answer(db, answer_data)
+        created_answer = create_student_answer(db, answer_data)
+    
+    # Generate instant AI feedback for first attempt
+    if answer_data.attempt == 1:
+        try:
+            # Get question to find module_id
+            question = get_question_by_id(db, str(answer_data.question_id))
+            if question and question.document:
+                module_id = str(question.document.module_id)
+                
+                # Generate AI feedback
+                feedback_service = AIFeedbackService()
+                feedback = feedback_service.generate_instant_feedback(
+                    db=db,
+                    student_answer=created_answer,
+                    question_id=str(answer_data.question_id),
+                    module_id=module_id
+                )
+                
+                # Return enhanced response with feedback
+                return {
+                    "success": True,
+                    "answer": {
+                        "id": str(created_answer.id),
+                        "student_id": created_answer.student_id,
+                        "question_id": str(created_answer.question_id),
+                        "document_id": str(created_answer.document_id),
+                        "answer": created_answer.answer,
+                        "attempt": created_answer.attempt,
+                        "submitted_at": created_answer.submitted_at.isoformat()
+                    },
+                    "feedback": feedback,
+                    "attempt_number": 1,
+                    "can_retry": not feedback.get("is_correct", False),
+                    "max_attempts": 2
+                }
+            else:
+                # Fallback if question/module not found
+                return {
+                    "success": True,
+                    "answer": created_answer,
+                    "feedback": None,
+                    "message": "Answer submitted but feedback unavailable"
+                }
+                
+        except Exception as e:
+            # If feedback generation fails, still return successful answer submission
+            return {
+                "success": True,
+                "answer": created_answer,
+                "feedback": None,
+                "error": f"Answer submitted but feedback failed: {str(e)}"
+            }
+    
+    else:
+        # For second attempt, return final result without feedback
+        return {
+            "success": True,
+            "answer": created_answer,
+            "attempt_number": answer_data.attempt,
+            "final_submission": True,
+            "message": "Final answer submitted successfully"
+        }
 
 # 📊 Get student's answers for a document
 @router.get("/documents/{document_id}/my-answers", response_model=List[StudentAnswerOut])

@@ -123,13 +123,13 @@ export default function HelpPage() {
                     <div>
                       <h4 className="font-semibold mb-2">How do I create a new test?</h4>
                       <p className="text-sm text-muted-foreground mb-3">
-                        Navigate to the Tests section and click "Create Test". Fill in the test details, add questions, and set the duration.
+                        Navigate to the Tests section and click &quot;Create Test&quot;. Fill in the test details, add questions, and set the duration.
                       </p>
                     </div>
                     <div>
                       <h4 className="font-semibold mb-2">How do I add students to my module?</h4>
                       <p className="text-sm text-muted-foreground mb-3">
-                        Go to the Students section and click "Add Students". You can invite them by email or share a module code.
+                        Go to the Students section and click &quot;Add Students&quot;. You can invite them by email or share a module code.
                       </p>
                     </div>
                     <div>

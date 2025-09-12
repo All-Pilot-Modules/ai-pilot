@@ -44,7 +44,7 @@ export default function StudentModulePage() {
     }
 
     const access = JSON.parse(accessData);
-    if (access.moduleId !== moduleId) {
+    if (String(access.moduleId) !== String(moduleId)) {
       router.push('/join');
       return;
     }
@@ -80,12 +80,28 @@ export default function StudentModulePage() {
           try {
             const answerResponse = await apiClient.get(`/api/student/questions/${question.id}/my-answer?student_id=${access.studentId}&attempt=1`);
             const existingAnswer = answerResponse.data || answerResponse;
-            if (existingAnswer && existingAnswer.answer && existingAnswer.answer.trim()) {
-              return {
-                questionId: question.id,
-                answer: existingAnswer.answer,
-                submitted_at: existingAnswer.submitted_at
-              };
+            if (existingAnswer && existingAnswer.answer) {
+              // Handle different answer formats
+              let answerValue;
+              if (typeof existingAnswer.answer === 'object') {
+                // JSONB format: {selected_option: "A", text_response: "..."}
+                if (existingAnswer.answer.selected_option) {
+                  answerValue = existingAnswer.answer.selected_option;
+                } else if (existingAnswer.answer.text_response && existingAnswer.answer.text_response.trim()) {
+                  answerValue = existingAnswer.answer.text_response.trim();
+                }
+              } else if (typeof existingAnswer.answer === 'string' && existingAnswer.answer.trim()) {
+                // String format (legacy)
+                answerValue = existingAnswer.answer.trim();
+              }
+              
+              if (answerValue) {
+                return {
+                  questionId: question.id,
+                  answer: answerValue,
+                  submitted_at: existingAnswer.submitted_at
+                };
+              }
             }
           } catch (err) {
             // No answer for this question
@@ -331,7 +347,9 @@ export default function StudentModulePage() {
           {/* Materials Tab */}
           <TabsContent value="materials" className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {documents.map((doc) => (
+              {documents
+                .filter((doc) => !doc.file_name.toLowerCase().includes('testbank'))
+                .map((doc) => (
                 <Card key={doc.id} className="hover:shadow-md transition-shadow">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -360,7 +378,7 @@ export default function StudentModulePage() {
               ))}
             </div>
 
-            {documents.length === 0 && (
+            {documents.filter((doc) => !doc.file_name.toLowerCase().includes('testbank')).length === 0 && (
               <Card className="text-center py-12">
                 <CardContent>
                   <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />

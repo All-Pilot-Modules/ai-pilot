@@ -44,6 +44,7 @@ def create_module(db: Session, payload: ModuleCreate) -> Module:
         slug=slugify.slugify(payload.name),
         access_code=secrets.token_hex(3),
         instructions=payload.instructions,
+        assignment_config=payload.assignment_config,
         created_at=datetime.utcnow()
     )
     db.add(new_module)

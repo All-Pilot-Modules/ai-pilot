@@ -9,16 +9,318 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Users } from "lucide-react";
+import { Plus, Search, Users, AlertCircle, X, Calendar, Clock, Award, BookOpen, TrendingUp, User, Edit, Trash2, MoreHorizontal, UserPlus, Mail, Phone, MapPin, Save, CheckCircle, XCircle, HelpCircle, List, ExternalLink, Filter, SortAsc, SortDesc, Download, FileText, FileJson } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { apiClient } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 
 export default function StudentsPage() {
   const { user, loading, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const moduleName = searchParams.get('module');
-  const [students, setStudents] = useState([]); // Will be fetched from API
+  const [students, setStudents] = useState([]);
+  const [filteredStudents, setFilteredStudents] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortField, setSortField] = useState('name');
+  const [sortDirection, setSortDirection] = useState('asc');
+  const [progressFilter, setProgressFilter] = useState('all');
+  const [loadingStudents, setLoadingStudents] = useState(true);
+  const [error, setError] = useState('');
+  const [moduleData, setModuleData] = useState(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  // Fetch module data and students when component mounts or module changes
+  useEffect(() => {
+    if (moduleName && isAuthenticated) {
+      fetchModuleData();
+    }
+  }, [moduleName, isAuthenticated]);
+
+  // Filter and sort students based on search term, progress filter, and sort options
+  useEffect(() => {
+    let filtered = students;
+    
+    // Apply search filter
+    if (searchTerm.trim() !== '') {
+      filtered = filtered.filter(student => 
+        student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.student_id?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Apply progress filter
+    if (progressFilter !== 'all') {
+      filtered = filtered.filter(student => {
+        const progress = student.progress || 0;
+        switch (progressFilter) {
+          case 'not-started': return progress === 0;
+          case 'in-progress': return progress > 0 && progress < 100;
+          case 'completed': return progress === 100;
+          default: return true;
+        }
+      });
+    }
+    
+    // Apply sorting
+    filtered = [...filtered].sort((a, b) => {
+      let aValue = a[sortField] || '';
+      let bValue = b[sortField] || '';
+      
+      // Convert to string for consistent comparison
+      aValue = aValue.toString().toLowerCase();
+      bValue = bValue.toString().toLowerCase();
+      
+      if (sortDirection === 'asc') {
+        return aValue.localeCompare(bValue, undefined, { numeric: true });
+      } else {
+        return bValue.localeCompare(aValue, undefined, { numeric: true });
+      }
+    });
+    
+    setFilteredStudents(filtered);
+  }, [students, searchTerm, sortField, sortDirection, progressFilter]);
+
+  const fetchModuleData = async () => {
+    try {
+      setLoadingStudents(true);
+      setError('');
+
+      // Get teacher ID from user data
+      const teacherId = user?.id || user?.sub;
+      if (!teacherId) {
+        setError('Unable to identify teacher. Please sign in again.');
+        setLoadingStudents(false);
+        return;
+      }
+
+      // First, get the module ID from module name
+      const modulesResponse = await apiClient.get(`/api/modules?teacher_id=${teacherId}`);
+      const modules = modulesResponse.data || modulesResponse;
+      const module = modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
+      
+      if (!module) {
+        setError(`Module "${moduleName}" not found in your modules`);
+        setLoadingStudents(false);
+        return;
+      }
+
+      setModuleData(module);
+
+      // Get questions for this module
+      const questionsResponse = await apiClient.get(`/api/student/modules/${module.id}/questions`);
+      const questions = questionsResponse.data || questionsResponse;
+
+      // Get all students who have submitted answers for this module using the optimized API
+      let realStudents = [];
+      let allModuleAnswers = [];
+      
+      try {
+        // Use the dedicated API endpoint to get all student answers for this module
+        const moduleAnswersResponse = await apiClient.get(`/api/student-answers?module_id=${module.id}`);
+        allModuleAnswers = moduleAnswersResponse.data || moduleAnswersResponse || [];
+        
+        console.log(`Retrieved ${allModuleAnswers.length} answers for module ${module.name}`);
+        
+        if (allModuleAnswers.length > 0) {
+          const studentMap = new Map();
+          
+          // Process all answers to extract unique students
+          allModuleAnswers.forEach(answer => {
+            if (answer.student_id) {
+              const studentKey = answer.student_id;
+              if (!studentMap.has(studentKey)) {
+                studentMap.set(studentKey, {
+                  id: answer.student_id,
+                  name: answer.student_id, // Use student_id as name for now
+                  email: answer.student_id, // Student ID might be email or we'll use it as identifier
+                  student_id: answer.student_id,
+                  last_access: answer.submitted_at || new Date().toISOString()
+                });
+              } else {
+                // Update last access if this answer is more recent
+                const existing = studentMap.get(studentKey);
+                if (answer.submitted_at && new Date(answer.submitted_at) > new Date(existing.last_access)) {
+                  existing.last_access = answer.submitted_at;
+                }
+              }
+            }
+          });
+          
+          realStudents = Array.from(studentMap.values());
+          console.log(`Found ${realStudents.length} unique students who have started tests in module ${module.name}`);
+        } else {
+          console.log('No student answers found for this module');
+        }
+      } catch (error) {
+        console.error('Error fetching module student answers:', error);
+      }
+
+      // Calculate actual performance for each student using the answers we already have
+      if (realStudents.length > 0 && questions && questions.length > 0 && allModuleAnswers.length > 0) {
+        const studentsWithPerformance = realStudents.map(student => {
+          // Filter answers for this specific student
+          const studentAnswers = allModuleAnswers.filter(answer => answer.student_id === student.student_id);
+          
+          // Calculate performance metrics
+          const totalQuestions = questions.length;
+          const answeredQuestions = studentAnswers.length;
+          
+          // Calculate correct answers by comparing student answer with correct answer
+          const correctAnswers = studentAnswers.filter(answer => {
+            if (typeof answer.answer === 'object' && typeof answer.correct_answer === 'object') {
+              return JSON.stringify(answer.answer) === JSON.stringify(answer.correct_answer);
+            }
+            return answer.answer === answer.correct_answer;
+          }).length;
+
+          return {
+            ...student,
+            total_questions: totalQuestions,
+            completed_questions: answeredQuestions,
+            avg_score: answeredQuestions > 0 ? Math.round((correctAnswers / answeredQuestions) * 100) : 0,
+            progress: Math.round((answeredQuestions / totalQuestions) * 100)
+          };
+        });
+        
+        setStudents(studentsWithPerformance);
+      } else {
+        // No students found or no questions available
+        setStudents(realStudents);
+      }
+
+    } catch (error) {
+      console.error('Error fetching module data:', error);
+      
+      // Handle different error types
+      let errorMessage = 'Failed to load module data. Please try again.';
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error.detail) {
+        errorMessage = error.detail;
+      }
+      
+      // Handle authentication errors
+      if (errorMessage.includes('Authentication required') || errorMessage.includes('401')) {
+        errorMessage = 'Please sign in to access this page.';
+      }
+      
+      setError(errorMessage);
+      setStudents([]);
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
+  const handleStudentClick = async (student) => {
+    // Navigate to dedicated student detail page
+    router.push(`/dashboard/students/${student.student_id}?module=${encodeURIComponent(moduleName)}`);
+  };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getProgressBadgeColor = (progress) => {
+    if (progress === 0) return 'bg-gray-100 text-gray-800';
+    if (progress < 50) return 'bg-red-100 text-red-800';
+    if (progress < 80) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-green-100 text-green-800';
+  };
+
+  const getSortIcon = (field) => {
+    if (sortField !== field) return <SortAsc className="w-4 h-4 opacity-50" />;
+    return sortDirection === 'asc' ? <SortAsc className="w-4 h-4" /> : <SortDesc className="w-4 h-4" />;
+  };
+
+  // Export students data as CSV
+  const exportStudentsCSV = () => {
+    if (!filteredStudents.length) return;
+
+    const csvHeaders = ['Student ID', 'Progress (%)', 'Average Score (%)', 'Questions Completed', 'Total Questions', 'Last Access'];
+    
+    const csvData = filteredStudents.map(student => [
+      student.student_id,
+      student.progress || 0,
+      student.avg_score || 0,
+      student.completed_questions || 0,
+      student.total_questions || 0,
+      student.last_access ? new Date(student.last_access).toLocaleString() : 'Never'
+    ]);
+
+    const csvContent = [
+      `Module: ${moduleData?.name || moduleName}`,
+      `Total Students: ${filteredStudents.length}`,
+      `Export Date: ${new Date().toLocaleString()}`,
+      '',
+      csvHeaders.join(','),
+      ...csvData.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `students-${moduleData?.name || moduleName}-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Export students data as JSON
+  const exportStudentsJSON = () => {
+    if (!filteredStudents.length) return;
+
+    const exportData = {
+      module: {
+        name: moduleData?.name || moduleName,
+        description: moduleData?.description
+      },
+      exportInfo: {
+        totalStudents: filteredStudents.length,
+        exportDate: new Date().toISOString(),
+        filters: {
+          searchTerm,
+          progressFilter,
+          sortField,
+          sortDirection
+        }
+      },
+      students: filteredStudents.map(student => ({
+        studentId: student.student_id,
+        progress: student.progress || 0,
+        averageScore: student.avg_score || 0,
+        questionsCompleted: student.completed_questions || 0,
+        totalQuestions: student.total_questions || 0,
+        lastAccess: student.last_access,
+        correctAnswers: student.correct_answers || 0,
+        incorrectAnswers: student.incorrect_answers || 0
+      }))
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `students-${moduleData?.name || moduleName}-${new Date().toISOString().split('T')[0]}.json`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+
 
   if (loading) {
     return <div className="p-8">Loading...</div>;
@@ -39,10 +341,33 @@ export default function StudentsPage() {
     return (
       <div className="p-8 text-center">
         <h1 className="text-xl mb-4">No Module Selected</h1>
+        <p className="text-muted-foreground mb-4">Please specify a module using the ?module parameter</p>
         <Button asChild>
-          <Link href="/mymodules">Go to My Modules</Link>
+          <Link href="/dashboard">Go to Dashboard</Link>
         </Button>
       </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <SidebarProvider>
+        <AppSidebar variant="inset" />
+        <SidebarInset>
+          <SiteHeader />
+          <div className="flex flex-1 flex-col items-center justify-center p-8">
+            <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+            <h1 className="text-xl font-semibold mb-2">Error</h1>
+            <p className="text-muted-foreground mb-4">{error}</p>
+            <div className="flex gap-2">
+              <Button onClick={fetchModuleData}>Try Again</Button>
+              <Button variant="outline" asChild>
+                <Link href="/dashboard">Go to Dashboard</Link>
+              </Button>
+            </div>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
     );
   }
 
@@ -56,115 +381,300 @@ export default function StudentsPage() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-              <div className="px-4 lg:px-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h1 className="text-2xl font-bold">Students - {moduleName}</h1>
-                    <p className="text-muted-foreground">
-                      Manage students enrolled in this module
-                    </p>
-                  </div>
-                  <Button>
-                    <Plus className="mr-2 w-4 h-4" />
-                    Add Students
+        <div className="min-h-screen bg-background">
+          <div className="max-w-7xl mx-auto px-6 py-12">
+            {/* Header */}
+            <div className="mb-10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-semibold text-foreground mb-2">Students - {moduleData?.name || moduleName}</h1>
+                  <p className="text-muted-foreground">Track and analyze student progress and performance</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    disabled={!students.length}
+                  >
+                    <Download className="mr-2 w-4 h-4" />
+                    Export
                   </Button>
-                </div>
-
-                {/* Search */}
-                <Card className="mb-6">
-                  <CardContent className="pt-6">
-                    <div className="flex items-center space-x-2">
-                      <Search className="w-4 h-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search students..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="flex-1"
-                      />
+                  {showExportMenu && students.length > 0 && (
+                    <div className="absolute right-0 mt-2 w-48 bg-card border border-border rounded-lg shadow-lg z-10">
+                      <div className="py-2">
+                        <button
+                          onClick={() => {
+                            exportStudentsCSV();
+                            setShowExportMenu(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                        >
+                          <FileText className="w-4 h-4" />
+                          Export as CSV
+                        </button>
+                        <button
+                          onClick={() => {
+                            exportStudentsJSON();
+                            setShowExportMenu(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
+                        >
+                          <FileJson className="w-4 h-4" />
+                          Export as JSON
+                        </button>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-
-                {/* Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Total Students</p>
-                          <p className="text-2xl font-bold">{students.length}</p>
-                        </div>
-                        <Users className="w-8 h-8 text-blue-600" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Active Students</p>
-                          <p className="text-2xl font-bold">0</p>
-                        </div>
-                        <Users className="w-8 h-8 text-green-600" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Avg Performance</p>
-                          <p className="text-2xl font-bold">-</p>
-                        </div>
-                        <Users className="w-8 h-8 text-purple-600" />
-                      </div>
-                    </CardContent>
-                  </Card>
+                  )}
                 </div>
-
-                {/* Students List */}
-                {students.length === 0 ? (
-                  <Card>
-                    <CardContent className="py-16 text-center">
-                      <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">No students yet</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Start by adding students to this module
-                      </p>
-                      <Button>
-                        <Plus className="mr-2 w-4 h-4" />
-                        Add Your First Student
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-4">
-                    {students.map((student) => (
-                      <Card key={student.id}>
-                        <CardContent className="p-6">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="font-semibold">{student.name}</h3>
-                              <p className="text-sm text-muted-foreground">{student.email}</p>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button variant="outline" size="sm">View Profile</Button>
-                              <Button variant="outline" size="sm">Performance</Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
+
+            {/* Search and Filters */}
+            <Card className="mb-6 border-border bg-card/50 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">Search & Filter</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="flex-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by name, email, or student ID..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                  <select
+                    value={progressFilter}
+                    onChange={(e) => setProgressFilter(e.target.value)}
+                    className="px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="all">All Progress</option>
+                    <option value="not-started">Not Started (0%)</option>
+                    <option value="in-progress">In Progress (1-99%)</option>
+                    <option value="completed">Completed (100%)</option>
+                  </select>
+                  <div className="flex items-center text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
+                    {filteredStudents.length} of {students.length} students
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <Card className="border-border bg-card/50 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Students</p>
+                      <p className="text-2xl font-bold text-foreground">
+                        {loadingStudents ? '...' : students.length}
+                      </p>
+                    </div>
+                    <Users className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border bg-card/50 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Active Students</p>
+                      <p className="text-2xl font-bold text-foreground">
+                        {loadingStudents ? '...' : students.filter(s => {
+                          const lastAccess = new Date(s.last_access);
+                          const daysSinceAccess = (Date.now() - lastAccess.getTime()) / (1000 * 60 * 60 * 24);
+                          return daysSinceAccess <= 7; // Active in last 7 days
+                        }).length}
+                      </p>
+                    </div>
+                    <Users className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border bg-card/50 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Avg Performance</p>
+                      <p className="text-2xl font-bold text-foreground">
+                        {loadingStudents ? '...' : students.length > 0 ? 
+                          Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) + '%' : 
+                          '-'
+                        }
+                      </p>
+                    </div>
+                    <Award className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Students Table */}
+            {loadingStudents ? (
+              <Card className="border-border bg-card/50 backdrop-blur-sm">
+                <CardContent className="py-16 text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                  <h3 className="text-lg font-semibold mb-2">Loading students...</h3>
+                  <p className="text-muted-foreground">Please wait while we fetch student data</p>
+                </CardContent>
+              </Card>
+            ) : students.length === 0 ? (
+              <Card className="border-border bg-card/50 backdrop-blur-sm">
+                <CardContent className="py-16 text-center">
+                  <div className="text-6xl mb-4">👥</div>
+                  <h3 className="text-lg font-semibold mb-2">No students enrolled</h3>
+                  <p className="text-muted-foreground mb-4">
+                    This module doesn't have any students yet. Students will appear here automatically when they start taking tests.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : filteredStudents.length === 0 ? (
+              <Card className="border-border bg-card/50 backdrop-blur-sm">
+                <CardContent className="py-16 text-center">
+                  <div className="text-6xl mb-4">🔍</div>
+                  <h3 className="text-lg font-semibold mb-2">No students found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    No students match your search term "{searchTerm}". Try adjusting your search.
+                  </p>
+                  <Button variant="outline" onClick={() => setSearchTerm('')}>
+                    Clear Search
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-border bg-card/50 backdrop-blur-sm">
+                    <CardContent className="p-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="border-b bg-muted/30">
+                            <tr>
+                              <th className="text-left p-4 font-semibold text-slate-700 dark:text-slate-200">
+                                <button
+                                  onClick={() => handleSort('student_id')}
+                                  className="flex items-center gap-2 hover:text-primary transition-colors"
+                                >
+                                  Student ID
+                                  {getSortIcon('student_id')}
+                                </button>
+                              </th>
+                              <th className="text-left p-4 font-semibold text-slate-700 dark:text-slate-200">
+                                <button
+                                  onClick={() => handleSort('progress')}
+                                  className="flex items-center gap-2 hover:text-primary transition-colors"
+                                >
+                                  Progress
+                                  {getSortIcon('progress')}
+                                </button>
+                              </th>
+                              <th className="text-left p-4 font-semibold text-slate-700 dark:text-slate-200">
+                                <button
+                                  onClick={() => handleSort('avg_score')}
+                                  className="flex items-center gap-2 hover:text-primary transition-colors"
+                                >
+                                  Average Score
+                                  {getSortIcon('avg_score')}
+                                </button>
+                              </th>
+                              <th className="text-left p-4 font-semibold text-slate-700 dark:text-slate-200">
+                                <button
+                                  onClick={() => handleSort('last_access')}
+                                  className="flex items-center gap-2 hover:text-primary transition-colors"
+                                >
+                                  Last Access
+                                  {getSortIcon('last_access')}
+                                </button>
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredStudents.map((student, index) => (
+                              <tr 
+                                key={student.id} 
+                                className="border-b border-slate-200 dark:border-slate-700 hover:bg-muted/30 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                                onClick={() => handleStudentClick(student)}
+                              >
+                                <td className="p-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-gradient-to-br from-slate-500 to-slate-600 rounded-full flex items-center justify-center text-white font-semibold text-xs">
+                                      {student.student_id?.charAt(0)?.toUpperCase() || 'S'}
+                                    </div>
+                                    <span className="font-mono text-base font-semibold bg-muted dark:bg-slate-700 px-3 py-1 rounded group-hover:bg-primary/10 group-hover:text-primary transition-colors text-slate-900 dark:text-slate-100">
+                                      {student.student_id}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-20 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                      <div 
+                                        className="h-2 rounded-full transition-all duration-300 bg-gradient-to-r from-slate-500 to-slate-600" 
+                                        style={{width: `${student.progress || 0}%`}}
+                                      ></div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{student.progress || 0}%</span>
+                                      <span className={`text-xs px-2 py-1 rounded-full font-medium ${getProgressBadgeColor(student.progress || 0)} dark:bg-opacity-20`}>
+                                        {(student.progress || 0) === 0 ? 'Not Started' : 
+                                         (student.progress || 0) === 100 ? 'Complete' : 'In Progress'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-3 h-3 rounded-full ${
+                                      (student.avg_score || 0) >= 80 ? 'bg-green-500' :
+                                      (student.avg_score || 0) >= 60 ? 'bg-yellow-500' :
+                                      'bg-red-500'
+                                    }`}></div>
+                                    <span className="font-semibold text-slate-900 dark:text-slate-100">{student.avg_score || 0}%</span>
+                                    <Award className="w-4 h-4 text-muted-foreground dark:text-slate-400" />
+                                  </div>
+                                </td>
+                                <td className="p-4">
+                                  <div className="text-sm">
+                                    <div className="font-medium text-slate-900 dark:text-slate-100">
+                                      {student.last_access ? new Date(student.last_access).toLocaleDateString() : 'Never'}
+                                    </div>
+                                    {student.last_access && (
+                                      <div className="text-xs text-muted-foreground dark:text-slate-400">
+                                        {new Date(student.last_access).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      
+                      {/* Table Footer */}
+                      <div className="border-t border-slate-200 dark:border-slate-700 bg-muted/20 dark:bg-slate-800/30 px-4 py-3">
+                        <div className="flex items-center justify-between text-sm text-muted-foreground dark:text-slate-400">
+                          <div>
+                            Showing {filteredStudents.length} of {students.length} students who have started tests in this module
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span>Click any row to view detailed performance</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
           </div>
         </div>
       </SidebarInset>
+
+
     </SidebarProvider>
   );
 }

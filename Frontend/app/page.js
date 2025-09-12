@@ -165,7 +165,7 @@ export default function Home() {
             </p>
             
             {/* Enhanced CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
               <Button 
                 asChild 
                 size="lg" 
@@ -189,6 +189,32 @@ export default function Home() {
                   <ExternalLink className="ml-2 w-4 h-4" />
                 </Link>
               </Button>
+            </div>
+
+            {/* Student Access Section */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 rounded-2xl p-8 mb-16 border border-blue-200 dark:border-blue-800">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Users className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                  Are you a student?
+                </h3>
+                <p className="text-lg text-slate-600 dark:text-slate-300 mb-6 max-w-2xl mx-auto">
+                  Join a learning module with an access code from your instructor and start taking tests, accessing materials, and tracking your progress.
+                </p>
+                <Button 
+                  asChild 
+                  size="lg" 
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  <Link href="/join" className="inline-flex items-center">
+                    <BookOpen className="mr-3 w-5 h-5" />
+                    Join a Module
+                    <ChevronRight className="ml-2 w-4 h-4" />
+                  </Link>
+                </Button>
+              </div>
             </div>
 
             {/* Open Source Indicators */}

@@ -53,16 +53,48 @@ export default function AccessAssignment() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.bannerId.trim() || !formData.accessCode.trim()) {
+      setError('Please fill in all required fields.');
       return;
     }
 
     setSubmitting(true);
+    setError(null);
+
     try {
-      // Here you would validate the banner ID and access code with backend
-      // For now, redirect to assignment/test page
-      router.push(`/assignment?code=${formData.accessCode}&banner=${formData.bannerId}`);
+      // Validate the access code with the backend
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/student/join-module?access_code=${encodeURIComponent(formData.accessCode.trim())}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
+        body: JSON.stringify({})
+      });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || 'Invalid access code');
+      }
+
+      // Store access data in sessionStorage
+      const accessData = {
+        moduleId: module.id,
+        moduleName: module.name,
+        teacherName: module.teacher_name || 'Instructor',
+        studentId: formData.bannerId.trim(),
+        accessCode: formData.accessCode.trim(),
+        accessTime: new Date().toISOString()
+      };
+      sessionStorage.setItem('student_module_access', JSON.stringify(accessData));
+      
+      // Redirect to module page
+      router.push(`/student/module/${module.id}`);
+      
     } catch (error) {
       console.error('Failed to access assignment:', error);
+      setError(error.message || 'Failed to join module. Please try again.');
     } finally {
       setSubmitting(false);
     }

@@ -11,13 +11,39 @@ import { Copy, RotateCcw, ExternalLink, Check } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/auth";
+import AssignmentFeaturesSelector from "@/components/AssignmentFeaturesSelector";
 
 export default function MyModules() {
   const { user, loading, isAuthenticated } = useAuth();
   const [modules, setModules] = useState([]);
   const [formData, setFormData] = useState({
     name: '',
-    description: ''
+    description: '',
+    assignment_config: {
+      features: {
+        multiple_attempts: {
+          enabled: true,
+          max_attempts: 2,
+          show_feedback_after_each: true
+        },
+        chatbot_feedback: {
+          enabled: true,
+          conversation_mode: "guided",
+          ai_model: "gpt-4"
+        },
+        mastery_learning: {
+          enabled: false,
+          streak_required: 3,
+          queue_randomization: true,
+          reset_on_wrong: false
+        }
+      },
+      display_settings: {
+        show_progress_bar: true,
+        show_streak_counter: true,
+        show_attempt_counter: true
+      }
+    }
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedItems, setCopiedItems] = useState({});
@@ -48,11 +74,40 @@ export default function MyModules() {
         name: formData.name,
         description: formData.description,
         is_active: true,
-        visibility: 'class-only'
+        visibility: 'class-only',
+        assignment_config: formData.assignment_config
       };
       
       await apiClient.post('/api/modules', moduleData);
-      setFormData({ name: '', description: '' });
+      setFormData({ 
+        name: '', 
+        description: '',
+        assignment_config: {
+          features: {
+            multiple_attempts: {
+              enabled: true,
+              max_attempts: 2,
+              show_feedback_after_each: true
+            },
+            chatbot_feedback: {
+              enabled: true,
+              conversation_mode: "guided",
+              ai_model: "gpt-4"
+            },
+            mastery_learning: {
+              enabled: false,
+              streak_required: 3,
+              queue_randomization: true,
+              reset_on_wrong: false
+            }
+          },
+          display_settings: {
+            show_progress_bar: true,
+            show_streak_counter: true,
+            show_attempt_counter: true
+          }
+        }
+      });
       fetchModules(); // Refresh the list
     } catch (error) {
       console.error('Failed to create module:', error);
@@ -109,53 +164,80 @@ export default function MyModules() {
           <p className="text-muted-foreground">Create and manage your modules</p>
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Create Module Form - Left Side */}
           <div className="lg:col-span-1">
-            <Card className="sticky top-6">
-              <CardHeader>
-                <CardTitle className="text-lg">Create New Module</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Module Name</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({...formData, name: e.target.value})}
-                      placeholder="Enter module name"
-                      required
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      value={formData.description}
-                      onChange={(e) => setFormData({...formData, description: e.target.value})}
-                      placeholder="Enter module description"
-                      rows={3}
-                      className="mt-1"
-                    />
-                  </div>
-                  <Button type="submit" disabled={isSubmitting} className="w-full">
-                    {isSubmitting ? 'Creating...' : 'Create Module'}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card className="sticky top-6">
+                <CardHeader>
+                  <CardTitle className="text-lg">Create New Module</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="name">Module Name</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({...formData, name: e.target.value})}
+                        placeholder="Enter module name"
+                        required
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        value={formData.description}
+                        onChange={(e) => setFormData({...formData, description: e.target.value})}
+                        placeholder="Enter module description"
+                        rows={3}
+                        className="mt-1"
+                      />
+                    </div>
+                    
+                    {/* Assignment Features Section */}
+                    <div className="space-y-4">
+                      <div>
+                        <Label className="text-sm font-medium">Assignment Features</Label>
+                        <p className="text-xs text-muted-foreground">Configure how students interact with assignments</p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          <span className="text-xs text-muted-foreground">Active:</span>
+                          {formData.assignment_config.features.multiple_attempts.enabled && (
+                            <Badge variant="secondary" className="text-xs">Multiple Attempts</Badge>
+                          )}
+                          {formData.assignment_config.features.chatbot_feedback.enabled && (
+                            <Badge variant="secondary" className="text-xs">AI Chatbot</Badge>
+                          )}
+                          {formData.assignment_config.features.mastery_learning.enabled && (
+                            <Badge variant="secondary" className="text-xs">Mastery Learning</Badge>
+                          )}
+                        </div>
+                      </div>
+                      <AssignmentFeaturesSelector
+                        value={formData.assignment_config}
+                        onChange={(config) => setFormData({...formData, assignment_config: config})}
+                      />
+                    </div>
+                    
+                    <Button type="submit" disabled={isSubmitting} className="w-full">
+                      {isSubmitting ? 'Creating...' : 'Create Module'}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {/* Modules Grid - Right Side */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-2">
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-foreground mb-2">Your Modules</h2>
               <p className="text-muted-foreground">Manage and share your created modules</p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {modules.map((module) => (
                 <Card key={module.id} className="group hover:shadow-lg transition-all duration-200 border-border bg-card/50 backdrop-blur-sm">
                   <CardContent className="p-6">

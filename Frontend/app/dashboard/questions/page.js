@@ -327,40 +327,25 @@ export default function QuestionsPage() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <div className="flex flex-1 flex-col bg-gradient-to-br from-background via-background to-muted/20">
-          {/* Header */}
-          <div className="border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="max-w-7xl mx-auto px-6 py-8">
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <HelpCircle className="w-6 h-6 text-primary" />
-                    </div>
-                    <div>
-                      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-                        Questions
-                      </h1>
-                      <p className="text-sm text-muted-foreground font-medium">
-                        {moduleName} • Question Bank Management
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-muted-foreground max-w-2xl leading-relaxed">
+        <div className="min-h-screen bg-background">
+          <div className="max-w-7xl mx-auto px-6 py-12">
+            {/* Header */}
+            <div className="mb-10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-semibold text-foreground mb-2">Questions - {moduleName}</h1>
+                  <p className="text-muted-foreground">
                     Create and manage questions for your module assessments
                   </p>
                 </div>
-
-                {/* Header Info Only */}
-                <div className="text-sm text-muted-foreground">
-                  Use the form on the left to create questions
-                </div>
+                <Button onClick={() => setIsCreateMode(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Question
+                </Button>
               </div>
             </div>
-          </div>
 
-          {/* Main Content */}
-          <div className="flex-1 max-w-7xl mx-auto w-full px-6 py-8">
+            {/* Main Content */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* Left Sidebar - Create Question Form */}
               <div className="lg:col-span-4">
@@ -617,12 +602,13 @@ export default function QuestionsPage() {
                 </CardContent>
               </Card>
             )}
-              </div>
             </div>
           </div>
         </div>
-
-        {/* Edit Drawer */}
+        </div>
+      </SidebarInset>
+      
+      {/* Edit Drawer */}
         <Drawer open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DrawerContent className="max-h-[90vh] overflow-y-auto">
             <DrawerHeader>
@@ -755,7 +741,6 @@ export default function QuestionsPage() {
             </DrawerFooter>
           </DrawerContent>
         </Drawer>
-      </SidebarInset>
     </SidebarProvider>
   );
 }

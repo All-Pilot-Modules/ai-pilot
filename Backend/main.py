@@ -37,7 +37,7 @@ app.include_router(student_answers_router, prefix="/api/student-answers", tags=[
 @app.on_event("startup")
 def on_startup():
     # ✅ Ensure all models are imported for table creation
-    from app.models import user, document, question, module, student_answer
+    from app.models import user, document, question, module, student_answer, question_queue
     print("🚀 App started! Creating tables...")
     Base.metadata.create_all(bind=engine)
 

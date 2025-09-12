@@ -21,6 +21,31 @@ CREATE TABLE "modules" (
   "visibility" text DEFAULT 'class-only',
   "slug" text UNIQUE,
   "instructions" text,
+  "assignment_config" jsonb DEFAULT '{
+    "features": {
+      "multiple_attempts": {
+        "enabled": false,
+        "max_attempts": 2,
+        "show_feedback_after_each": true
+      },
+      "chatbot_feedback": {
+        "enabled": false,
+        "conversation_mode": "guided",
+        "ai_model": "gpt-4"
+      },
+      "mastery_learning": {
+        "enabled": false,
+        "streak_required": 3,
+        "queue_randomization": true,
+        "reset_on_wrong": false
+      }
+    },
+    "display_settings": {
+      "show_progress_bar": true,
+      "show_streak_counter": true,
+      "show_attempt_counter": true
+    }
+  }',
   "created_at" timestamp DEFAULT (now())
 );
 
@@ -142,11 +167,26 @@ CREATE TABLE "rubric_scores" (
   "comment" text
 );
 
+CREATE TABLE "question_queue" (
+  "id" uuid PRIMARY KEY,
+  "student_id" text,
+  "module_id" uuid,
+  "question_id" uuid,
+  "position" int,
+  "attempts" int DEFAULT 0,
+  "is_mastered" boolean DEFAULT false,
+  "streak_count" int DEFAULT 0,
+  "last_attempt_at" timestamp,
+  "created_at" timestamp DEFAULT (now())
+);
+
 CREATE UNIQUE INDEX "uix_teacher_filehash" ON "documents" ("teacher_id", "file_hash", "module_id");
 
 CREATE INDEX "ix_questions_document_id" ON "questions" ("document_id");
 
 CREATE UNIQUE INDEX ON "student_answers" ("student_id", "question_id", "attempt");
+
+CREATE UNIQUE INDEX ON "question_queue" ("student_id", "module_id", "question_id");
 
 COMMENT ON COLUMN "users"."id" IS 'Brockport Banner ID manually entered by user';
 
@@ -249,3 +289,9 @@ ALTER TABLE "rubrics" ADD FOREIGN KEY ("question_id") REFERENCES "questions" ("i
 ALTER TABLE "rubric_scores" ADD FOREIGN KEY ("feedback_id") REFERENCES "ai_feedback" ("id");
 
 ALTER TABLE "rubric_scores" ADD FOREIGN KEY ("rubric_id") REFERENCES "rubrics" ("id");
+
+ALTER TABLE "question_queue" ADD FOREIGN KEY ("student_id") REFERENCES "users" ("id");
+
+ALTER TABLE "question_queue" ADD FOREIGN KEY ("module_id") REFERENCES "modules" ("id");
+
+ALTER TABLE "question_queue" ADD FOREIGN KEY ("question_id") REFERENCES "questions" ("id");

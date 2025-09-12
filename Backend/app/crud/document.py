@@ -38,7 +38,8 @@ def get_documents_by_module_for_students(db: Session, module_id) -> List[Documen
     """Get documents for students - excludes test banks"""
     return db.query(Document).filter(
         Document.module_id == module_id,
-        Document.is_testbank == False  # Never show test banks to students
+        Document.is_testbank == False,  # Never show test banks to students
+        ~Document.file_name.ilike('%testbank%')  # Also filter by filename containing 'testbank'
     ).all()
 
 

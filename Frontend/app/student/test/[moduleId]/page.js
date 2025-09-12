@@ -43,11 +43,15 @@ export default function StudentTestPage() {
   const [startTime] = useState(Date.now());
   const [isCompleted, setIsCompleted] = useState(false);
   const [autoSaveTimeout, setAutoSaveTimeout] = useState(null);
+  const [saveStatus, setSaveStatus] = useState(null); // 'saving', 'saved', 'error'
+  const [feedback, setFeedback] = useState({}); // Store feedback for each question
+  const [showFeedback, setShowFeedback] = useState({}); // Track which feedback is shown
+  const [attempts, setAttempts] = useState({}); // Track attempt numbers for each question
 
   useEffect(() => {
     // Check access
     const accessData = sessionStorage.getItem('student_module_access');
-    if (!accessData || JSON.parse(accessData).moduleId !== moduleId) {
+    if (!accessData || String(JSON.parse(accessData).moduleId) !== String(moduleId)) {
       router.push('/join');
       return;
     }
@@ -67,7 +71,7 @@ export default function StudentTestPage() {
         clearTimeout(autoSaveTimeout);
       }
     };
-  }, [moduleId, router, startTime, autoSaveTimeout]);
+  }, [moduleId, router, startTime]);
 
   const loadTestData = async (access) => {
     try {
@@ -85,14 +89,30 @@ export default function StudentTestPage() {
           try {
             const answerResponse = await apiClient.get(`/api/student/questions/${question.id}/my-answer?student_id=${access.studentId}&attempt=1`);
             const existingAnswer = answerResponse.data || answerResponse;
-            if (existingAnswer && existingAnswer.answer && existingAnswer.answer.trim()) {
-              return {
-                questionId: question.id,
-                answer: existingAnswer.answer
-              };
+            if (existingAnswer && existingAnswer.answer) {
+              // Handle different answer formats
+              let answerValue;
+              if (typeof existingAnswer.answer === 'object' && existingAnswer.answer.selected_option) {
+                // JSONB format: {selected_option: "A", text_response: "..."}
+                answerValue = existingAnswer.answer.selected_option;
+                if (existingAnswer.answer.text_response) {
+                  answerValue = existingAnswer.answer.text_response;
+                }
+              } else if (typeof existingAnswer.answer === 'string' && existingAnswer.answer.trim()) {
+                // String format
+                answerValue = existingAnswer.answer.trim();
+              }
+              
+              if (answerValue) {
+                return {
+                  questionId: question.id,
+                  answer: answerValue
+                };
+              }
             }
           } catch (err) {
             // No existing answer for this question
+            console.log(`No existing answer for question ${question.id}`);
           }
           return null;
         });
@@ -115,6 +135,9 @@ export default function StudentTestPage() {
   };
 
   const updateAnswer = (questionId, answer) => {
+    // Check if answer is the same to prevent duplicate API calls
+    if (answers[questionId] === answer) return;
+    
     // Update local state immediately
     setAnswers(prev => ({
       ...prev,
@@ -128,24 +151,129 @@ export default function StudentTestPage() {
 
     // Set new auto-save timeout (debounce for 2 seconds)
     if (answer && answer.trim() && moduleAccess) {
-      const timeoutId = setTimeout(async () => {
-        try {
-          const question = questions.find(q => q.id === questionId);
-          await apiClient.post(`/api/student/submit-answer`, {
-            student_id: moduleAccess.studentId,
-            question_id: questionId,
-            document_id: question.document_id,
-            answer: answer,
-            attempt: 1
-          });
-          console.log(`Auto-saved answer for question ${questionId}`);
-        } catch (error) {
-          console.error('Auto-save failed:', error);
-        }
-      }, 2000); // Wait 2 seconds after user stops typing
+      const question = questions.find(q => q.id === questionId);
+      
+      // For MCQ, save immediately and handle feedback
+      if (question?.type === 'mcq') {
+        // Immediate save for MCQ selections with feedback handling
+        const saveAnswer = async () => {
+          try {
+            const formattedAnswer = {
+              selected_option: answer.trim()
+            };
+            
+            const currentAttempt = attempts[questionId] || 1;
+            const response = await apiClient.post(`/api/student/submit-answer`, {
+              student_id: moduleAccess.studentId,
+              question_id: questionId,
+              document_id: question.document_id,
+              answer: formattedAnswer,
+              attempt: currentAttempt
+            });
+            
+            // Handle feedback for first attempt
+            if (currentAttempt === 1 && response.data?.feedback) {
+              setFeedback(prev => ({
+                ...prev,
+                [questionId]: response.data.feedback
+              }));
+              setShowFeedback(prev => ({
+                ...prev,
+                [questionId]: true
+              }));
+            }
+            
+            console.log(`Auto-saved MCQ answer for question ${questionId}`);
+          } catch (error) {
+            console.error('MCQ Auto-save failed:', error);
+          }
+        };
+        // Save with feedback handling
+        saveAnswer();
+      } else {
+        // For text answers, use debounced save with feedback handling
+        const timeoutId = setTimeout(async () => {
+          setSaveStatus('saving');
+          try {
+            const formattedAnswer = {
+              text_response: answer.trim()
+            };
+            
+            const currentAttempt = attempts[questionId] || 1;
+            const response = await apiClient.post(`/api/student/submit-answer`, {
+              student_id: moduleAccess.studentId,
+              question_id: questionId,
+              document_id: question.document_id,
+              answer: formattedAnswer,
+              attempt: currentAttempt
+            });
+            
+            // Handle feedback for first attempt
+            if (currentAttempt === 1 && response.data?.feedback) {
+              setFeedback(prev => ({
+                ...prev,
+                [questionId]: response.data.feedback
+              }));
+              setShowFeedback(prev => ({
+                ...prev,
+                [questionId]: true
+              }));
+            }
+            
+            setSaveStatus('saved');
+            setTimeout(() => setSaveStatus(null), 1000);
+            console.log(`Auto-saved text answer for question ${questionId}`);
+          } catch (error) {
+            console.error('Text Auto-save failed:', error);
+            setSaveStatus('error');
+            setTimeout(() => setSaveStatus(null), 2000);
+          }
+        }, 1500); // Reduced from 2 seconds to 1.5 seconds
 
-      setAutoSaveTimeout(timeoutId);
+        setAutoSaveTimeout(timeoutId);
+      }
+    } else {
+      setSaveStatus(null);
     }
+  };
+
+  const handleSecondAttempt = async (questionId) => {
+    try {
+      const question = questions.find(q => q.id === questionId);
+      if (!question) return;
+
+      // Set attempt to 2 for this question
+      setAttempts(prev => ({
+        ...prev,
+        [questionId]: 2
+      }));
+
+      // Clear the feedback display to allow new answer
+      setShowFeedback(prev => ({
+        ...prev,
+        [questionId]: false
+      }));
+
+      // Clear current answer to allow fresh input
+      setAnswers(prev => ({
+        ...prev,
+        [questionId]: ""
+      }));
+
+      setSuccess("You can now try again! Enter your second attempt.");
+      setTimeout(() => setSuccess(""), 3000);
+
+    } catch (error) {
+      console.error('Error setting up second attempt:', error);
+      setError("Failed to set up second attempt. Please try again.");
+    }
+  };
+
+  const dismissFeedback = (questionId) => {
+    setShowFeedback(prev => ({
+      ...prev,
+      [questionId]: false
+    }));
   };
 
   const handleSaveProgress = async () => {
@@ -155,12 +283,25 @@ export default function StudentTestPage() {
       
       if (!currentAnswer || !currentAnswer.trim()) return;
 
+      // Format answer based on question type
+      let formattedAnswer;
+      if (currentQ.type === 'mcq') {
+        formattedAnswer = {
+          selected_option: currentAnswer.trim()
+        };
+      } else {
+        formattedAnswer = {
+          text_response: currentAnswer.trim()
+        };
+      }
+
+      const currentAttempt = attempts[currentQ.id] || 1;
       await apiClient.post(`/api/student/submit-answer`, {
         student_id: moduleAccess.studentId,
         question_id: currentQ.id,
         document_id: currentQ.document_id,
-        answer: currentAnswer,
-        attempt: 1
+        answer: formattedAnswer,
+        attempt: currentAttempt
       });
       
       setSuccess("Progress saved!");
@@ -185,12 +326,25 @@ export default function StudentTestPage() {
       for (const question of questions) {
         const answer = answers[question.id];
         if (answer && answer.trim()) {
+          // Format answer based on question type
+          let formattedAnswer;
+          if (question.type === 'mcq') {
+            formattedAnswer = {
+              selected_option: answer.trim()
+            };
+          } else {
+            formattedAnswer = {
+              text_response: answer.trim()
+            };
+          }
+
+          const currentAttempt = attempts[question.id] || 1;
           await apiClient.post(`/api/student/submit-answer`, {
             student_id: moduleAccess.studentId,
             question_id: question.id,
             document_id: question.document_id,
-            answer: answer,
-            attempt: 1
+            answer: formattedAnswer,
+            attempt: currentAttempt
           });
         }
       }
@@ -255,7 +409,7 @@ export default function StudentTestPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-4">
+        <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button
@@ -280,6 +434,28 @@ export default function StudentTestPage() {
               <Badge variant="outline">
                 {getAnsweredCount()} / {questions.length} answered
               </Badge>
+              {saveStatus && (
+                <div className="flex items-center gap-1 text-sm">
+                  {saveStatus === 'saving' && (
+                    <>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                      <span className="text-blue-600">Saving...</span>
+                    </>
+                  )}
+                  {saveStatus === 'saved' && (
+                    <>
+                      <CheckCircle className="w-3 h-3 text-green-600" />
+                      <span className="text-green-600">Saved</span>
+                    </>
+                  )}
+                  {saveStatus === 'error' && (
+                    <>
+                      <XCircle className="w-3 h-3 text-red-600" />
+                      <span className="text-red-600">Save failed</span>
+                    </>
+                  )}
+                </div>
+              )}
               {isCompleted && (
                 <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
                   <CheckCircle className="w-3 h-3 mr-1" />
@@ -291,38 +467,59 @@ export default function StudentTestPage() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="max-w-5xl mx-auto px-4 py-4">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {/* Question Navigation Sidebar */}
           <div className="lg:col-span-1">
             <Card className="sticky top-6">
-              <CardHeader>
-                <CardTitle className="text-base">Questions</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Questions</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3">
                 <div className="grid grid-cols-5 lg:grid-cols-3 gap-2">
                   {questions.map((q, index) => {
                     const hasAnswer = answers[q.id] && answers[q.id].trim();
                     const isActive = index === currentQuestion;
+                    const questionAttempt = attempts[q.id] || 1;
+                    const hasFeedback = feedback[q.id];
+                    const isCorrect = hasFeedback?.is_correct;
                     
                     return (
                       <button
                         key={q.id}
                         onClick={() => setCurrentQuestion(index)}
                         className={`
-                          w-10 h-10 rounded-lg text-sm font-medium border-2 transition-colors relative
+                          w-12 h-12 rounded-lg text-sm font-bold border-2 transition-colors relative flex items-center justify-center
                           ${isActive 
-                            ? 'border-blue-600 bg-blue-600 text-white' 
-                            : hasAnswer 
+                            ? 'border-blue-600 bg-blue-600 text-white shadow-md' 
+                            : hasAnswer && isCorrect
                             ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                            : hasAnswer && hasFeedback && !isCorrect
+                            ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
+                            : hasAnswer 
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
                           }
                         `}
                       >
                         {hasAnswer ? (
-                          <CheckCircle className="w-5 h-5 mx-auto" />
+                          <div className="flex flex-col items-center justify-center">
+                            {isCorrect ? (
+                              <CheckCircle className="w-4 h-4" />
+                            ) : hasFeedback && !isCorrect ? (
+                              <XCircle className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                            <span className="text-xs font-medium mt-0.5">{index + 1}</span>
+                            {questionAttempt > 1 && (
+                              <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                                {questionAttempt}
+                              </span>
+                            )}
+                          </div>
                         ) : (
-                          index + 1
+                          <span className="text-base font-bold">{index + 1}</span>
                         )}
                       </button>
                     );
@@ -333,7 +530,7 @@ export default function StudentTestPage() {
           </div>
 
           {/* Current Question */}
-          <div className="lg:col-span-3">
+          <div className="lg:col-span-4">
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -360,7 +557,7 @@ export default function StudentTestPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {/* Question Text */}
                   <div className="prose dark:prose-invert max-w-none">
                     <p className="text-lg leading-relaxed">{currentQ?.text}</p>
@@ -395,27 +592,38 @@ export default function StudentTestPage() {
                     <Label className="text-base font-medium">Your Answer:</Label>
                     
                     {currentQ?.type === 'mcq' ? (
-                      <div className="space-y-3">
-                        {currentQ.options && Object.entries(currentQ.options).map(([key, option]) => (
-                          <div key={key} className="flex items-center space-x-3 p-4 rounded-lg border hover:bg-gray-50 dark:hover:bg-gray-800">
-                            <input
-                              type="radio"
-                              id={`option-${currentQ.id}-${key}`}
-                              name={`question-${currentQ.id}`}
-                              value={key}
-                              checked={answers[currentQ.id] === key}
-                              onChange={(e) => updateAnswer(currentQ.id, e.target.value)}
-                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
-                            />
-                            <Label 
-                              htmlFor={`option-${currentQ.id}-${key}`} 
-                              className="flex-1 cursor-pointer text-base"
+                      <div className="space-y-2">
+                        {currentQ.options && Object.entries(currentQ.options).map(([key, option]) => {
+                          const isSelected = answers[currentQ.id] === key;
+                          return (
+                            <div 
+                              key={key} 
+                              className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-all duration-200 ${
+                                isSelected 
+                                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20' 
+                                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
+                              }`}
+                              onClick={() => updateAnswer(currentQ.id, key)}
                             >
-                              <span className="font-medium mr-2">{key}.</span>
-                              {option}
-                            </Label>
-                          </div>
-                        ))}
+                              <input
+                                type="radio"
+                                id={`option-${currentQ.id}-${key}`}
+                                name={`question-${currentQ.id}`}
+                                value={key}
+                                checked={isSelected}
+                                onChange={() => {}} // Remove duplicate handler - onClick handles the selection
+                                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer"
+                              />
+                              <Label 
+                                htmlFor={`option-${currentQ.id}-${key}`} 
+                                className="flex-1 cursor-pointer text-base leading-relaxed"
+                              >
+                                <span className="font-semibold mr-3 text-blue-600">{key}.</span>
+                                <span className={isSelected ? 'text-blue-900 dark:text-blue-100' : ''}>{option}</span>
+                              </Label>
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : currentQ?.type === 'short' ? (
                       <Input
@@ -438,8 +646,102 @@ export default function StudentTestPage() {
               </CardContent>
             </Card>
 
+            {/* AI Feedback Display */}
+            {showFeedback[currentQ?.id] && feedback[currentQ?.id] && (
+              <Card className="mt-4 border-l-4 border-l-blue-500">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Brain className="w-5 h-5 text-blue-600" />
+                      AI Feedback - Attempt {attempts[currentQ?.id] || 1}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      {feedback[currentQ?.id]?.is_correct ? (
+                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Correct
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300">
+                          <XCircle className="w-3 h-3 mr-1" />
+                          Incorrect
+                        </Badge>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => dismissFeedback(currentQ?.id)}
+                      >
+                        <XCircle className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {/* Correctness Score */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">Score:</span>
+                      <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${feedback[currentQ?.id]?.correctness_score || 0}%` }}
+                        ></div>
+                      </div>
+                      <span className="text-sm font-medium">
+                        {feedback[currentQ?.id]?.correctness_score || 0}%
+                      </span>
+                    </div>
+
+                    {/* Explanation */}
+                    <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
+                      <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Explanation:</h4>
+                      <p className="text-blue-800 dark:text-blue-200">
+                        {feedback[currentQ?.id]?.explanation}
+                      </p>
+                    </div>
+
+                    {/* Improvement Hint */}
+                    {feedback[currentQ?.id]?.improvement_hint && (
+                      <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
+                        <h4 className="font-medium text-yellow-900 dark:text-yellow-100 mb-2 flex items-center gap-2">
+                          <Target className="w-4 h-4" />
+                          Improvement Suggestion:
+                        </h4>
+                        <p className="text-yellow-800 dark:text-yellow-200">
+                          {feedback[currentQ?.id]?.improvement_hint}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Second Attempt Button */}
+                    {!feedback[currentQ?.id]?.is_correct && (attempts[currentQ?.id] || 1) === 1 && (
+                      <div className="flex justify-center pt-2">
+                        <Button
+                          onClick={() => handleSecondAttempt(currentQ?.id)}
+                          className="bg-orange-600 hover:bg-orange-700 text-white"
+                        >
+                          <ArrowRight className="w-4 h-4 mr-2" />
+                          Try Second Attempt
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Second Attempt Result */}
+                    {(attempts[currentQ?.id] || 1) === 2 && (
+                      <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                        <p className="text-center font-medium">
+                          Second attempt completed. Final answer submitted.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Navigation and Actions */}
-            <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center justify-between mt-4">
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -460,14 +762,6 @@ export default function StudentTestPage() {
               </div>
 
               <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  onClick={handleSaveProgress}
-                  disabled={!answers[currentQ?.id] || !answers[currentQ?.id].trim()}
-                >
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Progress
-                </Button>
                 <Button
                   onClick={handleSubmitTest}
                   disabled={submitting || getAnsweredCount() === 0}

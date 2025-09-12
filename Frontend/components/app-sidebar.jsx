@@ -63,16 +63,6 @@ export function AppSidebar(props) {
       url: `/dashboard/students?module=${module}`,
       icon: IconChartBar,
     },
-    {
-      title: "Tests",
-      url: `/dashboard/tests?module=${module}`,
-      icon: IconListDetails,
-    },
-    {
-      title: "Analytics",
-      url: `/dashboard/analytics?module=${module}`,
-      icon: IconListDetails,
-    },
   ];
 
   const navSecondary = [
@@ -83,16 +73,23 @@ export function AppSidebar(props) {
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="border-b border-sidebar-border bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-950/30 dark:to-indigo-950/30">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-1.5">
-              <a href="#">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">
-                  AI Pilot Dashboard.
-                </span>
-              </a>
+            <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-5 hover:bg-transparent cursor-default">
+              <div className="flex items-center gap-4">
+                <div className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg">
+                  <IconInnerShadowTop className="!size-6 text-white" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    AI Pilot
+                  </span>
+                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wide">
+                    Education Platform
+                  </span>
+                </div>
+              </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -103,39 +100,49 @@ export function AppSidebar(props) {
         <NavSecondary items={navSecondary} className="mt-auto" />
       </SidebarContent>
 
-      <SidebarFooter>
-        <div className="flex items-center justify-between p-2">
-          <div className="flex items-center gap-2">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src={user?.profile_image} alt={user?.username} />
-              <AvatarFallback>
-                {user?.username?.charAt(0)?.toUpperCase() || 'U'}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col">
-              <p className="text-sm font-medium">{user?.username}</p>
-              <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+      <SidebarFooter className="border-t border-sidebar-border bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-900/50 dark:to-gray-900/50">
+        <div className="flex items-center justify-between p-3">
+          <div className="flex items-center gap-3 flex-1">
+            <div className="relative">
+              <Avatar className="h-10 w-10 ring-2 ring-blue-100 dark:ring-blue-900/50">
+                <AvatarImage src={user?.profile_image} alt={user?.username} />
+                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-semibold">
+                  {user?.username?.charAt(0)?.toUpperCase() || 'U'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground truncate">{user?.username || 'User'}</p>
+              <p className="text-xs text-muted-foreground capitalize font-medium">
+                {user?.role || 'Teacher'} • Online
+              </p>
             </div>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="h-8 w-8 rounded-full hover:bg-blue-50 dark:hover:bg-blue-950/50">
                 <Settings className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Account</DropdownMenuLabel>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium">{user?.username || 'User'}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email || 'user@example.com'}</p>
+                </div>
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer">
                 <User className="mr-2 h-4 w-4" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer">
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout}>
+              <DropdownMenuItem onClick={logout} className="cursor-pointer text-red-600 focus:text-red-600">
                 <LogOut className="mr-2 h-4 w-4" />
                 Log out
               </DropdownMenuItem>

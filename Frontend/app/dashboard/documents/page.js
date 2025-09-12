@@ -138,8 +138,13 @@ export default function DocumentsPage() {
       formData.append('teacher_id', user.id);
       formData.append('title', uploadForm.title || uploadForm.file.name);
 
-      const response = await fetch('/api/documents/upload', {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/upload`, {
         method: 'POST',
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
         body: formData,
       });
 

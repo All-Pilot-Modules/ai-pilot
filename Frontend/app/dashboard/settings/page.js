@@ -9,13 +9,103 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Settings, Save, User, Shield, Bell } from "lucide-react";
 import Link from "next/link";
+import { useState, useEffect } from "react";
+import { apiClient } from "@/lib/auth";
+import AssignmentFeaturesSelector from "@/components/AssignmentFeaturesSelector";
 
 export default function SettingsPage() {
   const { user, loading, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const moduleName = searchParams.get('module');
+  const [moduleData, setModuleData] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    assignment_config: {
+      features: {
+        multiple_attempts: {
+          enabled: true,
+          max_attempts: 2,
+          show_feedback_after_each: true
+        },
+        chatbot_feedback: {
+          enabled: true,
+          conversation_mode: "guided",
+          ai_model: "gpt-4"
+        },
+        mastery_learning: {
+          enabled: false,
+          streak_required: 3,
+          queue_randomization: true,
+          reset_on_wrong: false
+        }
+      },
+      display_settings: {
+        show_progress_bar: true,
+        show_streak_counter: true,
+        show_attempt_counter: true
+      }
+    }
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated && user && moduleName) {
+      fetchModuleData();
+    }
+  }, [isAuthenticated, user, moduleName]);
+
+  const fetchModuleData = async () => {
+    try {
+      setIsLoading(true);
+      const modules = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
+      const currentModule = modules.find(m => m.name === moduleName);
+      if (currentModule) {
+        setModuleData(currentModule);
+        setFormData({
+          name: currentModule.name,
+          description: currentModule.description || '',
+          assignment_config: currentModule.assignment_config || formData.assignment_config
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch module:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveModule = async () => {
+    if (!moduleData) return;
+    
+    try {
+      setIsSaving(true);
+      await apiClient.put(`/api/modules/${moduleData.id}`, {
+        name: formData.name,
+        description: formData.description,
+        assignment_config: formData.assignment_config
+      });
+      
+      // Update local data
+      setModuleData(prev => ({
+        ...prev,
+        name: formData.name,
+        description: formData.description,
+        assignment_config: formData.assignment_config
+      }));
+      
+      alert('Module settings updated successfully!');
+    } catch (error) {
+      console.error('Failed to update module:', error);
+      alert('Failed to update module settings. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (loading) {
     return <div className="p-8">Loading...</div>;
@@ -66,31 +156,75 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Module Settings */}
+                <div className="space-y-6">
+                  {/* Combined Module Settings & Assignment Features */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Settings className="w-5 h-5" />
                         Module Settings
                       </CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Configure your module details and assignment features
+                      </p>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div>
-                        <Label htmlFor="moduleName">Module Name</Label>
-                        <Input id="moduleName" defaultValue={moduleName} />
+                    <CardContent className="space-y-6">
+                      {/* Basic Module Information */}
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="moduleName">Module Name</Label>
+                          <Input 
+                            id="moduleName" 
+                            value={formData.name}
+                            onChange={(e) => setFormData({...formData, name: e.target.value})}
+                            disabled={isLoading}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="moduleDesc">Description</Label>
+                          <Textarea 
+                            id="moduleDesc" 
+                            placeholder="Module description"
+                            value={formData.description}
+                            onChange={(e) => setFormData({...formData, description: e.target.value})}
+                            disabled={isLoading}
+                            rows={3}
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <Label htmlFor="moduleDesc">Description</Label>
-                        <Input id="moduleDesc" placeholder="Module description" />
+
+                      {/* Assignment Features */}
+                      <div className="border-t pt-6">
+                        <div className="mb-4">
+                          <h3 className="text-lg font-medium">Assignment Features</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Configure how students interact with assignments
+                          </p>
+                        </div>
+                        {isLoading ? (
+                          <div className="text-center py-8">
+                            <p className="text-muted-foreground">Loading module settings...</p>
+                          </div>
+                        ) : (
+                          <AssignmentFeaturesSelector
+                            value={formData.assignment_config}
+                            onChange={(config) => setFormData({...formData, assignment_config: config})}
+                          />
+                        )}
                       </div>
-                      <Button>
-                        <Save className="mr-2 w-4 h-4" />
-                        Save Changes
-                      </Button>
+
+                      {/* Save Button */}
+                      <div className="border-t pt-6">
+                        <Button onClick={handleSaveModule} disabled={isSaving || isLoading} className="w-full">
+                          <Save className="mr-2 w-4 h-4" />
+                          {isSaving ? 'Saving Module Settings...' : 'Save All Changes'}
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
 
+                  {/* Other Settings Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Account Settings */}
                   <Card>
                     <CardHeader>
@@ -161,6 +295,7 @@ export default function SettingsPage() {
                       </Button>
                     </CardContent>
                   </Card>
+                  </div>
                 </div>
               </div>
             </div>

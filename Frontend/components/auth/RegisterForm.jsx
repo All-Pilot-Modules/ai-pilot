@@ -6,7 +6,6 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 
@@ -17,7 +16,7 @@ export default function RegisterForm() {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'student',
+    role: 'teacher',
     profile_image: ''
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -56,13 +55,19 @@ export default function RegisterForm() {
 
     try {
       const { confirmPassword, ...registerData } = formData;
+      console.log('Registering user:', registerData);
       await register(registerData);
       
       // Auto login after registration
       await login(formData.email, formData.password);
       router.push('/mymodules');
     } catch (error) {
-      setError(error.message);
+      console.error('Registration failed:', error);
+      if (error.message.includes('fetch')) {
+        setError('Unable to connect to server. Please make sure the backend is running and try again.');
+      } else {
+        setError(error.message || 'Registration failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -72,9 +77,9 @@ export default function RegisterForm() {
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Sign Up</CardTitle>
+          <CardTitle>Teacher Sign Up</CardTitle>
           <CardDescription>
-            Create a new account to get started
+            Create a teacher account to manage modules and students
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -111,19 +116,6 @@ export default function RegisterForm() {
                 onChange={(e) => handleChange('email', e.target.value)}
                 required
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="role">Role</Label>
-              <Select value={formData.role} onValueChange={(value) => handleChange('role', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your role" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="student">Student</SelectItem>
-                  <SelectItem value="teacher">Teacher</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="profile_image">Profile Image URL</Label>
