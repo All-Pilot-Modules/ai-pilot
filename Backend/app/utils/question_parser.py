@@ -2,7 +2,7 @@
 import re
 from uuid import UUID
 
-def parse_testbank_text_to_questions(raw_text: str, document_id: UUID) -> list[dict]:
+def parse_testbank_text_to_questions(raw_text: str, module_id: UUID, document_id: UUID = None) -> list[dict]:
     questions = []
     lines = raw_text.splitlines()
     i = 0
@@ -50,7 +50,8 @@ def parse_testbank_text_to_questions(raw_text: str, document_id: UUID) -> list[d
                 correct_answer = correct_answer_letter  # For short answers, store the text
 
             questions.append({
-                "document_id": str(document_id),
+                "module_id": str(module_id),
+                "document_id": str(document_id) if document_id else None,
                 "type": q_type,
                 "text": q_text,
                 "slide_number": None,

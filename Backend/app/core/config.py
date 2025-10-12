@@ -22,6 +22,11 @@ ENV = os.getenv("ENV", "development")
 JWT_SECRET = os.getenv("JWT_SECRET")
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")
 
+# === Supabase Configuration ===
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "documents")
+
 # Optional print to confirm it's loaded (for debug)
 print("ENV loaded:", ENV)
 print("OpenAI Key loaded:", OPENAI_API_KEY[:5], "...")

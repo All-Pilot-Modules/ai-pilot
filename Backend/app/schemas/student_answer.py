@@ -6,7 +6,8 @@ from datetime import datetime
 class StudentAnswerBase(BaseModel):
     student_id: str = Field(..., description="Student user ID")
     question_id: UUID = Field(..., description="Question ID being answered")
-    document_id: UUID = Field(..., description="Document ID containing the question")
+    module_id: UUID = Field(..., description="Module ID containing the question")
+    document_id: Optional[UUID] = Field(None, description="Optional document ID if question came from a document")
     answer: Dict[str, Any] = Field(..., description="Student's answer - supports MCQ selection + text explanation")
     attempt: int = Field(..., description="Attempt number (1 or 2)", ge=1, le=2)
 
@@ -21,4 +22,4 @@ class StudentAnswerOut(StudentAnswerBase):
     submitted_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True

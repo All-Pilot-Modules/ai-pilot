@@ -275,6 +275,39 @@ def get_my_answer_for_question(
         return None
     return answer
 
+# 📊 Get student's answers for a module (optimized batch loading)
+@router.get("/modules/{module_id}/my-answers", response_model=List[StudentAnswerOut])
+def get_my_module_answers(
+    module_id: UUID,
+    student_id: str = Query(..., description="Student ID"),
+    attempt: int = Query(1, description="Attempt number", ge=1, le=2),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all student's answers for a module in one request (performance optimized)
+    """
+    from app.models.student_answer import StudentAnswer
+    from app.models.question import Question
+
+    # Get all answers for this student in this module
+    try:
+        # Try new schema first (with module_id)
+        answers = db.query(StudentAnswer).filter(
+            StudentAnswer.student_id == student_id,
+            StudentAnswer.module_id == module_id,
+            StudentAnswer.attempt == attempt
+        ).all()
+    except Exception:
+        # Fallback to old schema (via document_id)
+        from app.models.document import Document
+        answers = db.query(StudentAnswer).join(Question).join(Document).filter(
+            StudentAnswer.student_id == student_id,
+            Document.module_id == module_id,
+            StudentAnswer.attempt == attempt
+        ).all()
+
+    return answers
+
 # 📈 Get student's progress for a module
 @router.get("/modules/{module_id}/progress")
 def get_module_progress(
@@ -287,6 +320,6 @@ def get_module_progress(
     Get student's progress for all questions in a module
     """
     from app.crud.student_answer import get_student_progress_by_module
-    
+
     progress = get_student_progress_by_module(db, student_id, module_id, attempt)
     return progress

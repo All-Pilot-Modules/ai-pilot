@@ -1,5 +1,6 @@
 import os
 import json
+import tempfile
 from fastapi import HTTPException
 from hashlib import sha256
 from sqlalchemy.orm import Session
@@ -11,10 +12,10 @@ from app.schemas.document import DocumentCreate
 from app.schemas.question import QuestionCreate
 from app.crud.document import create_document
 from app.crud.question import bulk_create_questions
-from app.utils.file import save_uploaded_file
 from app.utils.pdf_extractor import extract_text_from_pdf
 from app.utils.question_parser import parse_testbank_text_to_questions
 from app.services.module import get_or_create_module
+from app.services.storage import storage_service
 
 
 def handle_document_upload(
@@ -37,22 +38,30 @@ def handle_document_upload(
     file_hash = sha256(file_bytes).hexdigest()
     file_ext = filename.split('.')[-1].lower()
 
-    # 📁 Save to uploads/<teacher_id>/<module_name>/
-    folder_path = os.path.join("uploads", teacher_id, module.name)
-    os.makedirs(folder_path, exist_ok=True)
+    # 📁 Prepare Supabase storage path: teacher_id/module_name/filename
     storage_filename = f"{os.path.splitext(filename)[0]}_{file_hash[:8]}.{file_ext}"
-    storage_path = os.path.join(folder_path, storage_filename)
+    supabase_folder_path = f"{teacher_id}/{module.name}"
+    supabase_file_path = f"{supabase_folder_path}/{storage_filename}"
 
-    # 🚫 Check for duplicate
-    if any(file_hash[:8] in f for f in os.listdir(folder_path)):
+    # 🚫 Check for duplicate in Supabase storage (optional - Supabase handles with upsert)
+    # Note: We'll let Supabase handle duplicates with upsert=True
+    # Uncomment below if you want explicit duplicate prevention
+    # if storage_service.check_duplicate_by_hash(supabase_folder_path, file_hash):
+    #     raise HTTPException(
+    #         status_code=409,
+    #         detail=f"Duplicate detected: File with same content already exists."
+    #     )
+
+    # 💾 Upload file to Supabase Storage
+    try:
+        storage_url = storage_service.upload_file(file_bytes, supabase_file_path)
+        print(f"✅ File uploaded successfully to Supabase: {storage_url}")
+    except Exception as e:
+        print(f"❌ Failed to upload file to Supabase: {str(e)}")
         raise HTTPException(
-            status_code=409,
-            detail=f"Duplicate detected: File with same content already exists."
+            status_code=500,
+            detail=f"Failed to upload file to storage: {str(e)}"
         )
-
-    # 💾 Save file
-    with open(storage_path, "wb") as f:
-        f.write(file_bytes)
 
     # 📦 Metadata
     index_path = f"indices/{teacher_id}/{file_hash}"
@@ -61,33 +70,55 @@ def handle_document_upload(
     is_testbank = "testbank" in filename.lower()
     parse_status = "pending" if is_testbank else None
 
-    # 🗃️ Save document in DB
-    doc_data = DocumentCreate(
-        title=resolved_title,
-        file_name=filename,
-        file_hash=file_hash,
-        file_type=file_ext,
-        teacher_id=teacher_id,
-        module_id=module.id,
-        storage_path=storage_path,
-        index_path=index_path,
-        slide_count=slide_count,
-        parse_status=parse_status,
-        parse_error=None,
-        is_testbank=is_testbank
-    )
-    document = create_document(db, doc_data)
+    # 🗃️ Save document in DB (storage_path now contains Supabase URL)
+    print(f"📋 Creating document record with:")
+    print(f"  - Title: {resolved_title}")
+    print(f"  - Storage URL: {storage_url}")
+    print(f"  - Module ID: {module.id}")
+    print(f"  - Teacher ID: {teacher_id}")
+
+    try:
+        doc_data = DocumentCreate(
+            title=resolved_title,
+            file_name=filename,
+            file_hash=file_hash,
+            file_type=file_ext,
+            teacher_id=teacher_id,
+            module_id=module.id,
+            storage_path=storage_url,  # Now storing Supabase URL instead of local path
+            index_path=index_path,
+            slide_count=slide_count,
+            parse_status=parse_status,
+            parse_error=None,
+            is_testbank=is_testbank
+        )
+        print(f"📄 Document data created: {doc_data}")
+
+        document = create_document(db, doc_data)
+        print(f"✅ Document saved to database with ID: {document.id}")
+
+    except Exception as e:
+        print(f"❌ Failed to save document to database: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to save document to database: {str(e)}"
+        )
 
     # 🤖 Parse testbank if PDF
     if is_testbank and file_ext == "pdf":
+        temp_file_path = None
         try:
-            extracted_text = extract_text_from_pdf(storage_path)
-            parsed_questions = parse_testbank_text_to_questions(extracted_text, document.id)
+            # Download file temporarily from Supabase for parsing
+            temp_file_path = storage_service.download_file_temporarily(supabase_file_path)
 
-            # Save parsed questions to JSON
-            json_path = os.path.join(folder_path, "parsed_questions.json")
-            with open(json_path, "w") as f:
-                json.dump(parsed_questions, f, indent=2)
+            # Extract text from temporary file
+            extracted_text = extract_text_from_pdf(temp_file_path)
+            parsed_questions = parse_testbank_text_to_questions(extracted_text, module.id, document.id)
+
+            # Save parsed questions to JSON (upload to Supabase as well)
+            parsed_json = json.dumps(parsed_questions, indent=2)
+            json_file_path = f"{supabase_folder_path}/parsed_questions.json"
+            storage_service.upload_file(parsed_json.encode('utf-8'), json_file_path)
 
             # Save to DB
             question_objs = [QuestionCreate(**q) for q in parsed_questions]
@@ -101,6 +132,10 @@ def handle_document_upload(
             document.parse_status = "failed"
             document.parse_error = str(e)
             db.commit()
+        finally:
+            # Clean up temporary file
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
 
     return document
 
@@ -124,33 +159,44 @@ def reparse_testbank_document(db: Session, document_id: UUID):
     if not doc.file_type.lower().endswith("pdf"):
         raise HTTPException(status_code=400, detail="Only PDF testbanks can be parsed")
 
-    if not os.path.exists(doc.storage_path):
-        raise HTTPException(status_code=404, detail="File not found on disk")
-
+    # Extract file path from storage URL for Supabase
+    # storage_path now contains Supabase URL, need to get the path
     try:
-        extracted_text = extract_text_from_pdf(doc.storage_path)
-        parsed_questions = parse_testbank_text_to_questions(extracted_text, doc.id)
-
-        # 📁 Save under correct module folder
+        # Get module info first
         from app.models.module import Module
         module = db.query(Module).filter(Module.id == doc.module_id).first()
-        folder_path = os.path.join("uploads", doc.teacher_id, module.name)
-        os.makedirs(folder_path, exist_ok=True)
-        json_path = os.path.join(folder_path, "parsed_questions.json")
 
-        with open(json_path, "w") as f:
-            json.dump(parsed_questions, f, indent=2)
+        # Construct Supabase file path
+        storage_filename = f"{os.path.splitext(doc.file_name)[0]}_{doc.file_hash[:8]}.{doc.file_type}"
+        supabase_file_path = f"{doc.teacher_id}/{module.name}/{storage_filename}"
 
-        # 🔁 Replace old questions
-        db.query(Question).filter(Question.document_id == doc.id).delete()
-        bulk_create_questions(db, [QuestionCreate(**q) for q in parsed_questions])
+        # Download file temporarily from Supabase
+        temp_file_path = storage_service.download_file_temporarily(supabase_file_path)
 
-        # ✅ Update status
-        doc.parse_status = "success"
-        doc.parse_error = None
-        db.commit()
+        try:
+            extracted_text = extract_text_from_pdf(temp_file_path)
+            parsed_questions = parse_testbank_text_to_questions(extracted_text, module.id, doc.id)
 
-        return {"message": "Re-parsing and saving successful."}
+            # Save parsed questions JSON to Supabase
+            parsed_json = json.dumps(parsed_questions, indent=2)
+            json_file_path = f"{doc.teacher_id}/{module.name}/parsed_questions.json"
+            storage_service.upload_file(parsed_json.encode('utf-8'), json_file_path)
+
+            # 🔁 Replace old questions
+            db.query(Question).filter(Question.document_id == doc.id).delete()
+            bulk_create_questions(db, [QuestionCreate(**q) for q in parsed_questions])
+
+            # ✅ Update status
+            doc.parse_status = "success"
+            doc.parse_error = None
+            db.commit()
+
+            return {"message": "Re-parsing and saving successful."}
+
+        finally:
+            # Clean up temporary file
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
 
     except Exception as e:
         doc.parse_status = "failed"

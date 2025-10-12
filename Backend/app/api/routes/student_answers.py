@@ -57,6 +57,7 @@ def get_all_student_answers(
                     "id": answer.id,
                     "student_id": answer.student_id,
                     "question_id": answer.question_id,
+                    "module_id": answer.module_id,
                     "document_id": answer.document_id,
                     "answer": answer.answer,
                     "attempt": answer.attempt,

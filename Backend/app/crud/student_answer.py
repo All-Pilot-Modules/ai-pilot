@@ -95,20 +95,17 @@ def get_student_progress(db: Session, student_id: str, document_id: UUID, attemp
 # Get student's progress for all questions in a module
 def get_student_progress_by_module(db: Session, student_id: str, module_id: UUID, attempt: int = 1) -> dict:
     from app.models.question import Question
-    from app.models.document import Document
-    
-    # Get total questions in all documents within this module
-    total_questions = db.query(Question).join(Document).filter(
-        Document.module_id == module_id
-    ).count()
-    
-    # Get answered questions for this attempt across all documents in the module
-    answered_questions = db.query(StudentAnswer).join(Question).join(Document).filter(
+
+    # Get total questions in this module (direct relationship)
+    total_questions = db.query(Question).filter(Question.module_id == module_id).count()
+
+    # Get answered questions for this attempt in the module
+    answered_questions = db.query(StudentAnswer).filter(
         StudentAnswer.student_id == student_id,
-        StudentAnswer.attempt == attempt,
-        Document.module_id == module_id
+        StudentAnswer.module_id == module_id,
+        StudentAnswer.attempt == attempt
     ).count()
-    
+
     return {
         "total_questions": total_questions,
         "answered_questions": answered_questions,
@@ -119,20 +116,17 @@ def get_student_progress_by_module(db: Session, student_id: str, module_id: UUID
 # Get all student answers for a module (teacher function)
 def get_student_answers_by_module(db: Session, module_id: UUID) -> List[dict]:
     from app.models.question import Question
-    from app.models.document import Document
-    
-    # Join with Question to get question text, options, and correct answer
+
+    # Join with Question to get question text, options, and correct answer (direct module relationship)
     results = db.query(
         StudentAnswer,
         Question.text,
         Question.options,
         Question.correct_answer
-    ).join(Question, StudentAnswer.question_id == Question.id).join(
-        Document, Question.document_id == Document.id
-    ).filter(
-        Document.module_id == module_id
+    ).join(Question, StudentAnswer.question_id == Question.id).filter(
+        StudentAnswer.module_id == module_id
     ).all()
-    
+
     # Convert to list of dictionaries with question_text, options, and correct answer included
     answer_list = []
     for answer, question_text, question_options, correct_answer in results:
@@ -140,6 +134,7 @@ def get_student_answers_by_module(db: Session, module_id: UUID) -> List[dict]:
             "id": answer.id,
             "student_id": answer.student_id,
             "question_id": answer.question_id,
+            "module_id": answer.module_id,
             "document_id": answer.document_id,
             "answer": answer.answer,
             "attempt": answer.attempt,
@@ -149,25 +144,22 @@ def get_student_answers_by_module(db: Session, module_id: UUID) -> List[dict]:
             "correct_answer": correct_answer
         }
         answer_list.append(answer_dict)
-    
+
     return answer_list
 
 # Delete all answers for a student in a specific module (teacher function)
 def delete_student_assignment(db: Session, student_id: str, module_id: UUID) -> int:
-    from app.models.question import Question
-    from app.models.document import Document
-    
-    # Get all answers for this student in this module
-    answers = db.query(StudentAnswer).join(Question).join(Document).filter(
+    # Get all answers for this student in this module (direct relationship)
+    answers = db.query(StudentAnswer).filter(
         StudentAnswer.student_id == student_id,
-        Document.module_id == module_id
+        StudentAnswer.module_id == module_id
     ).all()
-    
+
     # Delete all answers
     count = 0
     for answer in answers:
         db.delete(answer)
         count += 1
-    
+
     db.commit()
     return count

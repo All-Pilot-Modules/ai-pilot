@@ -7,7 +7,8 @@ class Question(Base):
     __tablename__ = "questions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    module_id = Column(UUID(as_uuid=True), ForeignKey("modules.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=True)
 
     type = Column(String, nullable=False)  # mcq, short, long
     text = Column(Text, nullable=False)
@@ -23,5 +24,6 @@ class Question(Base):
     has_text_input = Column(Boolean, default=False)
 
     __table_args__ = (
+        Index('ix_questions_module_id', 'module_id'),
         Index('ix_questions_document_id', 'document_id'),
     )

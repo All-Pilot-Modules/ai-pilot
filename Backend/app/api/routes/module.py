@@ -110,7 +110,7 @@ def update_existing_module(module_id: UUID, payload: ModuleCreate, db: Session =
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update module: {str(e)}")
 
-# ❌ Delete module and all associated documents
+# ❌ Delete module and all associated data
 @router.delete("/modules/{module_id}")
 def remove_module(module_id: UUID, db: Session = Depends(get_db)):
     print(f"Delete request received for module_id: {module_id} (type: {type(module_id)})")
@@ -118,7 +118,7 @@ def remove_module(module_id: UUID, db: Session = Depends(get_db)):
         success = delete_module_with_documents(db, str(module_id))
         if not success:
             raise HTTPException(status_code=404, detail="Module not found")
-        return {"detail": "Module and all associated documents deleted successfully."}
+        return {"detail": "Module and all associated data (documents, questions, student answers, enrollments) deleted successfully."}
     except ValueError as ve:
         print(f"ValueError in module deletion: {ve}")
         raise HTTPException(status_code=400, detail=str(ve))

@@ -23,10 +23,9 @@ def bulk_create_questions(db: Session, questions: List[QuestionCreate]) -> List[
 def get_questions_by_document_id(db: Session, document_id: UUID) -> List[Question]:
     return db.query(Question).filter(Question.document_id == document_id).all()
 
-# ✅ Get all questions from a specific module (via documents)
+# ✅ Get all questions from a specific module (direct relationship)
 def get_questions_by_module_id(db: Session, module_id: UUID) -> List[Question]:
-    from app.models.document import Document
-    return db.query(Question).join(Document).filter(Document.module_id == module_id).all()
+    return db.query(Question).filter(Question.module_id == module_id).all()
 
 # ✅ Get a single question by ID
 def get_question_by_id(db: Session, question_id: UUID) -> Optional[Question]:
