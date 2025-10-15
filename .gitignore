@@ -8,6 +8,11 @@ yarn-debug.log*
 yarn-error.log*
 
 # Environment files
+# Ignore all .env files in any folder
+**/.env
+**/.env.local
+**/.env.*.local
+
 .env
 .env.local
 .env.*.local
