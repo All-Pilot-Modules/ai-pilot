@@ -122,14 +122,15 @@ def get_student_answers_by_module(db: Session, module_id: UUID) -> List[dict]:
         StudentAnswer,
         Question.text,
         Question.options,
-        Question.correct_answer
+        Question.correct_answer,
+        Question.correct_option_id
     ).join(Question, StudentAnswer.question_id == Question.id).filter(
         StudentAnswer.module_id == module_id
     ).all()
 
     # Convert to list of dictionaries with question_text, options, and correct answer included
     answer_list = []
-    for answer, question_text, question_options, correct_answer in results:
+    for answer, question_text, question_options, correct_answer, correct_option_id in results:
         answer_dict = {
             "id": answer.id,
             "student_id": answer.student_id,
@@ -141,7 +142,8 @@ def get_student_answers_by_module(db: Session, module_id: UUID) -> List[dict]:
             "submitted_at": answer.submitted_at,
             "question_text": question_text,
             "question_options": question_options,
-            "correct_answer": correct_answer
+            "correct_answer": correct_answer,
+            "correct_option_id": correct_option_id
         }
         answer_list.append(answer_dict)
 

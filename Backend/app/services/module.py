@@ -9,6 +9,7 @@ import slugify  # type: ignore # Requires `python-slugify`
 import os
 import shutil
 from pathlib import Path
+from app.services.storage import storage_service
 
 def get_or_create_module(db: Session, teacher_id: str, module_name: str) -> Module:
     # Validate inputs
@@ -68,6 +69,9 @@ def delete_module_with_documents(db: Session, module_id: str) -> bool:
         from app.models.question import Question
         from app.models.student_answer import StudentAnswer
         from app.models.question_queue import QuestionQueue
+        from app.models.ai_feedback import AIFeedback
+        from app.models.document_chunk import DocumentChunk
+        from app.models.document_embedding import DocumentEmbedding
 
         # Get simple counts for logging using list length (safer than count() queries)
         documents = db.query(Document).filter(Document.module_id == module.id).all()
@@ -77,7 +81,9 @@ def delete_module_with_documents(db: Session, module_id: str) -> bool:
         try:
             questions = db.query(Question.id).filter(Question.module_id == module.id).all()
             questions_count = len(questions)
-        except Exception:
+        except Exception as e:
+            # Rollback the failed transaction before continuing
+            db.rollback()
             # Fallback: questions may still use document_id if migration hasn't been applied
             questions = []
             for doc in documents:
@@ -89,7 +95,9 @@ def delete_module_with_documents(db: Session, module_id: str) -> bool:
         try:
             answers = db.query(StudentAnswer.id).filter(StudentAnswer.module_id == module.id).all()
             answers_count = len(answers)
-        except Exception:
+        except Exception as e:
+            # Rollback the failed transaction before continuing
+            db.rollback()
             # Fallback: answers may still use document_id if migration hasn't been applied
             answers = []
             for doc in documents:
@@ -102,14 +110,30 @@ def delete_module_with_documents(db: Session, module_id: str) -> bool:
 
         print(f"Found {documents_count} documents, {questions_count} questions, {answers_count} student answers, {queue_count} queue items to delete")
 
-        # Delete physical files first
+        # Delete physical files from Supabase Storage
         for document in documents:
+            # Construct the Supabase storage path from the document info
+            # Storage path format: teacher_id/module_name/filename_hash.ext
+            try:
+                storage_filename = f"{os.path.splitext(document.file_name)[0]}_{document.file_hash[:8]}.{document.file_type}"
+                supabase_file_path = f"{module.teacher_id}/{module.name}/{storage_filename}"
+
+                # Delete from Supabase Storage
+                success = storage_service.delete_file(supabase_file_path)
+                if success:
+                    print(f"Deleted file from Supabase: {supabase_file_path}")
+                else:
+                    print(f"Failed to delete file from Supabase: {supabase_file_path}")
+            except Exception as e:
+                print(f"Error deleting file from Supabase for document {document.id}: {e}")
+
+            # Delete local file if it exists (legacy support)
             if document.storage_path and os.path.exists(document.storage_path):
                 try:
                     os.remove(document.storage_path)
-                    print(f"Deleted file: {document.storage_path}")
+                    print(f"Deleted local file: {document.storage_path}")
                 except Exception as e:
-                    print(f"Failed to delete file {document.storage_path}: {e}")
+                    print(f"Failed to delete local file {document.storage_path}: {e}")
 
             # Also delete the JSON index file if it exists
             if hasattr(document, 'index_path') and document.index_path and os.path.exists(document.index_path):
@@ -136,18 +160,38 @@ def delete_module_with_documents(db: Session, module_id: str) -> bool:
             # Try module_id first (new schema)
             try:
                 answers_to_delete = db.query(StudentAnswer).filter(StudentAnswer.module_id == module.id).all()
-            except Exception:
+            except Exception as e:
+                # Rollback the failed transaction before continuing
+                db.rollback()
                 # Fallback to document_id (old schema)
                 answers_to_delete = []
                 for doc in documents:
                     doc_answers = db.query(StudentAnswer).filter(StudentAnswer.document_id == doc.id).all()
                     answers_to_delete.extend(doc_answers)
 
+            # Collect answer IDs for AI feedback deletion
+            answer_ids = [answer.id for answer in answers_to_delete]
+
             for answer in answers_to_delete:
                 db.delete(answer)
             print(f"Deleted {len(answers_to_delete)} student answers")
         except Exception as e:
             print(f"Error deleting student answers: {e}")
+            db.rollback()
+            answer_ids = []
+
+        # 2b. Delete AI feedback associated with the deleted student answers
+        try:
+            if answer_ids:
+                feedback_to_delete = db.query(AIFeedback).filter(AIFeedback.answer_id.in_(answer_ids)).all()
+                for feedback in feedback_to_delete:
+                    db.delete(feedback)
+                print(f"Deleted {len(feedback_to_delete)} AI feedback entries")
+            else:
+                print("No AI feedback to delete (no student answers found)")
+        except Exception as e:
+            print(f"Error deleting AI feedback: {e}")
+            db.rollback()
 
         # 3. Skip student enrollments (table doesn't exist in current schema)
         print("Skipped student enrollments (table doesn't exist)")
@@ -157,7 +201,9 @@ def delete_module_with_documents(db: Session, module_id: str) -> bool:
             # Try module_id first (new schema)
             try:
                 questions_to_delete = db.query(Question).filter(Question.module_id == module.id).all()
-            except Exception:
+            except Exception as e:
+                # Rollback the failed transaction before continuing
+                db.rollback()
                 # Fallback to document_id (old schema)
                 questions_to_delete = []
                 for doc in documents:
@@ -169,8 +215,30 @@ def delete_module_with_documents(db: Session, module_id: str) -> bool:
             print(f"Deleted {len(questions_to_delete)} questions")
         except Exception as e:
             print(f"Error deleting questions: {e}")
+            db.rollback()
 
-        # 5. Delete documents (they reference module)
+        # 5. Delete document chunks and embeddings (for RAG)
+        try:
+            document_ids = [doc.id for doc in documents]
+            if document_ids:
+                # Delete embeddings first (they reference chunks)
+                embeddings_to_delete = db.query(DocumentEmbedding).filter(DocumentEmbedding.document_id.in_(document_ids)).all()
+                for embedding in embeddings_to_delete:
+                    db.delete(embedding)
+                print(f"Deleted {len(embeddings_to_delete)} document embeddings")
+
+                # Delete chunks
+                chunks_to_delete = db.query(DocumentChunk).filter(DocumentChunk.document_id.in_(document_ids)).all()
+                for chunk in chunks_to_delete:
+                    db.delete(chunk)
+                print(f"Deleted {len(chunks_to_delete)} document chunks")
+            else:
+                print("No document chunks or embeddings to delete")
+        except Exception as e:
+            print(f"Error deleting document chunks/embeddings: {e}")
+            db.rollback()
+
+        # 6. Delete documents (they reference module)
         try:
             # We already have documents from earlier
             for document in documents:
@@ -178,23 +246,39 @@ def delete_module_with_documents(db: Session, module_id: str) -> bool:
             print(f"Deleted {len(documents)} documents")
         except Exception as e:
             print(f"Error deleting documents: {e}")
+            db.rollback()
 
-        # Try to remove the module folder
+        # Delete the parsed_questions.json file from Supabase if it exists
+        try:
+            parsed_json_path = f"{module.teacher_id}/{module.name}/parsed_questions.json"
+            success = storage_service.delete_file(parsed_json_path)
+            if success:
+                print(f"Deleted parsed questions JSON from Supabase: {parsed_json_path}")
+        except Exception as e:
+            print(f"Error deleting parsed questions JSON: {e}")
+
+        # Try to remove the local module folder (legacy support)
         upload_base = Path("uploads")
         module_folder = upload_base / module.teacher_id / module.name
         if module_folder.exists() and module_folder.is_dir():
             try:
                 # Remove the module folder and all contents
                 shutil.rmtree(module_folder)
-                print(f"Deleted module folder: {module_folder}")
+                print(f"Deleted local module folder: {module_folder}")
             except Exception as e:
-                print(f"Failed to delete module folder {module_folder}: {e}")
+                print(f"Failed to delete local module folder {module_folder}: {e}")
 
-        # 4. Finally delete the module itself
+        # 7. Finally delete the module itself
         db.delete(module)
         db.commit()
 
-        print(f"Successfully deleted module '{module.name}' with {documents_count} documents, {questions_count} questions, {answers_count} student answers, and {queue_count} queue items")
+        print(f"Successfully deleted module '{module.name}' with all associated data:")
+        print(f"  - {documents_count} documents")
+        print(f"  - {questions_count} questions")
+        print(f"  - {answers_count} student answers")
+        print(f"  - AI feedback entries")
+        print(f"  - Document chunks and embeddings")
+        print(f"  - {queue_count} queue items")
         return True
 
     except Exception as e:

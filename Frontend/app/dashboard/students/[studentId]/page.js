@@ -27,6 +27,9 @@ export default function StudentDetailPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [aiFeedbackMap, setAiFeedbackMap] = useState({});
+  const [answersByAttempt, setAnswersByAttempt] = useState({});
+  const [selectedAttempt, setSelectedAttempt] = useState(1);
 
   useEffect(() => {
     if (studentId && moduleName && isAuthenticated) {
@@ -50,7 +53,7 @@ export default function StudentDetailPage() {
       const modulesResponse = await apiClient.get(`/api/modules?teacher_id=${teacherId}`);
       const modules = modulesResponse.data || modulesResponse;
       const module = modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
-      
+
       if (!module) {
         setError(`Module "${moduleName}" not found`);
         return;
@@ -65,13 +68,49 @@ export default function StudentDetailPage() {
       // Get all student answers for this module
       const moduleAnswersResponse = await apiClient.get(`/api/student-answers?module_id=${module.id}`);
       const allModuleAnswers = moduleAnswersResponse.data || moduleAnswersResponse || [];
-      
+
       // Filter answers for this specific student
       const studentModuleAnswers = allModuleAnswers.filter(answer => answer.student_id === studentId);
 
       if (studentModuleAnswers.length === 0) {
         setError(`No data found for student "${studentId}" in module "${moduleName}"`);
         return;
+      }
+
+      // Fetch AI feedback for this student and module
+      let feedbackData = [];
+      try {
+        const feedbackResponse = await apiClient.get(`/api/student/modules/${module.id}/feedback?student_id=${studentId}`);
+        feedbackData = feedbackResponse.data || feedbackResponse || [];
+
+        // Create a map of feedback by answer_id for quick lookup
+        const feedbackByAnswerId = {};
+        feedbackData.forEach(feedback => {
+          feedbackByAnswerId[feedback.answer_id] = feedback;
+        });
+        setAiFeedbackMap(feedbackByAnswerId);
+
+        console.log(`Loaded ${feedbackData.length} AI feedback entries for student ${studentId}`);
+      } catch (feedbackError) {
+        console.error('Error fetching AI feedback:', feedbackError);
+        // Continue without feedback - not critical
+      }
+
+      // Group answers by attempt number
+      const attemptGroups = {};
+      studentModuleAnswers.forEach(answer => {
+        const attempt = answer.attempt || 1;
+        if (!attemptGroups[attempt]) {
+          attemptGroups[attempt] = [];
+        }
+        attemptGroups[attempt].push(answer);
+      });
+      setAnswersByAttempt(attemptGroups);
+
+      // Get all unique attempts and set the selected attempt to the latest
+      const attempts = Object.keys(attemptGroups).map(Number).sort((a, b) => b - a);
+      if (attempts.length > 0) {
+        setSelectedAttempt(attempts[0]); // Default to most recent attempt
       }
 
       // Build student info from first answer
@@ -86,7 +125,7 @@ export default function StudentDetailPage() {
         }, studentModuleAnswers[0].submitted_at)
       };
 
-      // Calculate performance metrics
+      // Calculate performance metrics across ALL attempts
       const totalQuestions = questions.length;
       const answeredQuestions = studentModuleAnswers.length;
       const correctAnswers = studentModuleAnswers.filter(answer => {
@@ -103,19 +142,16 @@ export default function StudentDetailPage() {
         avg_score: answeredQuestions > 0 ? Math.round((correctAnswers / answeredQuestions) * 100) : 0,
         progress: Math.round((answeredQuestions / totalQuestions) * 100),
         correct_answers: correctAnswers,
-        incorrect_answers: answeredQuestions - correctAnswers
+        incorrect_answers: answeredQuestions - correctAnswers,
+        total_attempts: attempts.length
       };
 
       setStudent(studentWithPerformance);
 
-      // Create question data with student answers
-      const studentQuestionData = questions.map(question => {
-        const studentAnswer = studentModuleAnswers.find(answer => answer.question_id === question.id);
-        
-        // Format answers properly
-        const formatAnswer = (answer, options) => {
+      // Format answers properly - helper function
+      const formatAnswer = (answer, options) => {
           if (!answer) return null;
-          
+
           if (typeof answer === 'object') {
             // Handle object answers like {selected_option: "A"}
             if (answer.selected_option && options) {
@@ -129,7 +165,7 @@ export default function StudentDetailPage() {
             }
             return JSON.stringify(answer);
           }
-          
+
           // Handle string answers - check if it's a single letter (A, B, C, D)
           if (typeof answer === 'string' && answer.length === 1 && options) {
             try {
@@ -140,28 +176,66 @@ export default function StudentDetailPage() {
               return answer;
             }
           }
-          
+
           return answer;
         };
-        
-        const options = studentAnswer ? studentAnswer.question_options : (question.options || null);
-        const correctAnswer = studentAnswer ? studentAnswer.correct_answer : question.answer;
-        const studentAnswerValue = studentAnswer ? studentAnswer.answer : null;
-        
+
+      // Simple helper function to extract option ID from answer for comparison
+      const extractOptionId = (answer) => {
+        if (!answer) return null;
+
+        // New format: {selected_option_id: "A"}
+        if (typeof answer === 'object' && answer.selected_option_id) {
+          return answer.selected_option_id.toUpperCase();
+        }
+
+        // Old format: {selected_option: "A"}
+        if (typeof answer === 'object' && answer.selected_option) {
+          return answer.selected_option.toUpperCase();
+        }
+
+        // Plain string format
+        if (typeof answer === 'string') {
+          const trimmed = answer.trim();
+          // If it's a single letter (A, B, C, D), return uppercase
+          if (trimmed.length === 1 && /[A-Za-z]/.test(trimmed)) {
+            return trimmed.toUpperCase();
+          }
+          // For text responses, return as-is
+          return trimmed;
+        }
+
+        return null;
+      };
+
+      // Simple comparison function
+      const isAnswerCorrect = (studentAnswer, correctOptionId, correctAnswer) => {
+        // For MCQ: compare option IDs
+        const studentOptionId = extractOptionId(studentAnswer);
+        const correctId = (correctOptionId || correctAnswer || '').trim().toUpperCase();
+
+        return studentOptionId === correctId;
+      };
+
+      // Build question data from student answers (to include all attempts)
+      const studentQuestionData = studentModuleAnswers.map((studentAnswer) => {
+        const options = studentAnswer.question_options;
+        const correctOptionId = studentAnswer.correct_option_id; // New field
+        const correctAnswer = studentAnswer.correct_answer; // Legacy field
+        const studentAnswerValue = studentAnswer.answer;
+
         return {
-          question_id: question.id,
-          question_text: studentAnswer ? studentAnswer.question_text : question.text,
-          question_type: question.type,
-          correct_answer: formatAnswer(correctAnswer, options),
+          question_id: studentAnswer.question_id,
+          answer_id: studentAnswer.id, // Store answer_id for feedback lookup
+          question_text: studentAnswer.question_text,
+          question_type: studentAnswer.question_type || 'unknown',
+          correct_answer: formatAnswer(correctOptionId || correctAnswer, options),
           student_answer: formatAnswer(studentAnswerValue, options),
-          is_correct: studentAnswer ? (
-            typeof studentAnswer.answer === 'object' && typeof studentAnswer.correct_answer === 'object'
-              ? JSON.stringify(studentAnswer.answer) === JSON.stringify(studentAnswer.correct_answer)
-              : studentAnswer.answer === studentAnswer.correct_answer
-          ) : null,
-          answered_at: studentAnswer ? studentAnswer.submitted_at : null,
+          is_correct: isAnswerCorrect(studentAnswerValue, correctOptionId, correctAnswer),
+          answered_at: studentAnswer.submitted_at,
+          attempt: studentAnswer.attempt || 1,
           options: options,
-          raw_correct_answer: correctAnswer,
+          raw_correct_answer: correctOptionId || correctAnswer,
           raw_student_answer: studentAnswerValue
         };
       });
@@ -176,46 +250,111 @@ export default function StudentDetailPage() {
     }
   };
 
-  // Function to generate dummy AI feedback
-  const generateAIFeedback = (isCorrect, studentAnswer, correctAnswer) => {
-    if (isCorrect === null) return ''; // Not answered
-    
-    const feedbacks = {
-      correct: [
-        "Excellent! Your answer demonstrates a clear understanding of the concept.",
-        "Great job! You've correctly identified the key points.",
-        "Well done! Your reasoning is sound and accurate.",
-        "Perfect! This shows strong comprehension of the material.",
-        "Outstanding work! You've grasped the concept completely."
-      ],
-      incorrect: [
-        "Consider reviewing the fundamental concepts related to this topic.",
-        "Your answer shows partial understanding. Focus on the key principles.",
-        "This is a common misconception. Review the material and try to identify the correct approach.",
-        "Good attempt, but double-check your reasoning process.",
-        "Close, but review the specific details that lead to the correct answer."
-      ]
-    };
-    
-    const feedbackArray = isCorrect ? feedbacks.correct : feedbacks.incorrect;
-    return feedbackArray[Math.floor(Math.random() * feedbackArray.length)];
+  // Function to get real AI feedback from database
+  const getAIFeedback = (answerId) => {
+    if (!answerId || !aiFeedbackMap[answerId]) {
+      return null;
+    }
+    return aiFeedbackMap[answerId];
+  };
+
+  // Function to render AI feedback display
+  const renderAIFeedback = (answerId, isCorrect) => {
+    const feedback = getAIFeedback(answerId);
+
+    if (!feedback) {
+      // No feedback available
+      if (isCorrect === null) {
+        return <span className="text-slate-600/70 dark:text-slate-400/70 italic">Not answered yet</span>;
+      }
+      return <span className="text-slate-600/70 dark:text-slate-400/70 italic">No AI feedback available for this attempt</span>;
+    }
+
+    // Display real AI feedback
+    return (
+      <div className="space-y-2">
+        {feedback.explanation && (
+          <div>
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Explanation:</span>
+            <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed">{feedback.explanation}</p>
+          </div>
+        )}
+
+        {feedback.strengths && feedback.strengths.length > 0 && (
+          <div>
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase">Strengths:</span>
+            <ul className="text-sm text-slate-800 dark:text-slate-200 list-disc list-inside">
+              {feedback.strengths.map((strength, idx) => (
+                <li key={idx}>{strength}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {feedback.weaknesses && feedback.weaknesses.length > 0 && (
+          <div>
+            <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 uppercase">Weaknesses:</span>
+            <ul className="text-sm text-slate-800 dark:text-slate-200 list-disc list-inside">
+              {feedback.weaknesses.map((weakness, idx) => (
+                <li key={idx}>{weakness}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {feedback.improvement_hint && (
+          <div>
+            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Suggestion:</span>
+            <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed">{feedback.improvement_hint}</p>
+          </div>
+        )}
+
+        {feedback.score !== null && feedback.score !== undefined && (
+          <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-600">
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Score: </span>
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{Math.round(feedback.score * 100)}%</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Function to get formatted AI feedback text for export
+  const getAIFeedbackText = (answerId) => {
+    const feedback = getAIFeedback(answerId);
+    if (!feedback) return 'No AI feedback available';
+
+    let text = '';
+    if (feedback.explanation) text += `Explanation: ${feedback.explanation}. `;
+    if (feedback.strengths && feedback.strengths.length > 0) {
+      text += `Strengths: ${feedback.strengths.join('; ')}. `;
+    }
+    if (feedback.weaknesses && feedback.weaknesses.length > 0) {
+      text += `Weaknesses: ${feedback.weaknesses.join('; ')}. `;
+    }
+    if (feedback.improvement_hint) text += `Suggestion: ${feedback.improvement_hint}. `;
+    if (feedback.score !== null && feedback.score !== undefined) {
+      text += `Score: ${Math.round(feedback.score * 100)}%`;
+    }
+    return text || 'No feedback details';
   };
 
   // Function to download student report as CSV
   const downloadStudentReport = () => {
     if (!student || !studentAnswers.length) return;
 
-    const csvHeaders = ['Question No.', 'Question', 'Correct Answer', 'Student Answer', 'Result', 'AI Feedback'];
-    
+    const csvHeaders = ['Question No.', 'Question', 'Correct Answer', 'Student Answer', 'Result', 'Attempt', 'AI Feedback'];
+
     const csvData = studentAnswers.map((questionData, index) => [
       index + 1,
       `"${questionData.question_text}"`,
       `"${questionData.correct_answer || 'Not specified'}"`,
       `"${questionData.student_answer || 'Not Answered'}"`,
-      questionData.student_answer !== null 
+      questionData.student_answer !== null
         ? (questionData.is_correct ? 'Correct' : 'Wrong')
         : 'Pending',
-      `"${generateAIFeedback(questionData.is_correct, questionData.student_answer, questionData.correct_answer) || 'Analysis pending...'}"`
+      questionData.attempt || 1,
+      `"${getAIFeedbackText(questionData.answer_id)}"`
     ]);
 
     const csvContent = [
@@ -225,6 +364,7 @@ export default function StudentDetailPage() {
       `Overall Progress: ${student.progress}%`,
       `Average Score: ${student.avg_score}%`,
       `Questions Completed: ${student.completed_questions}/${student.total_questions}`,
+      `Total Attempts: ${student.total_attempts || 1}`,
       `Report Generated: ${new Date().toLocaleString()}`,
       '',
       csvHeaders.join(','),
@@ -253,24 +393,35 @@ export default function StudentDetailPage() {
         averageScore: student.avg_score,
         questionsCompleted: student.completed_questions,
         totalQuestions: student.total_questions,
+        totalAttempts: student.total_attempts || 1,
         lastAccess: student.last_access
       },
       module: {
         name: moduleData?.name || moduleName,
         description: moduleData?.description
       },
-      questions: studentAnswers.map((questionData, index) => ({
-        questionNumber: index + 1,
-        questionText: questionData.question_text,
-        correctAnswer: questionData.correct_answer,
-        studentAnswer: questionData.student_answer,
-        isCorrect: questionData.is_correct,
-        result: questionData.student_answer !== null 
-          ? (questionData.is_correct ? 'Correct' : 'Wrong')
-          : 'Pending',
-        aiFeedback: generateAIFeedback(questionData.is_correct, questionData.student_answer, questionData.correct_answer),
-        answeredAt: questionData.answered_at
-      })),
+      questions: studentAnswers.map((questionData, index) => {
+        const feedback = getAIFeedback(questionData.answer_id);
+        return {
+          questionNumber: index + 1,
+          questionText: questionData.question_text,
+          correctAnswer: questionData.correct_answer,
+          studentAnswer: questionData.student_answer,
+          isCorrect: questionData.is_correct,
+          result: questionData.student_answer !== null
+            ? (questionData.is_correct ? 'Correct' : 'Wrong')
+            : 'Pending',
+          attempt: questionData.attempt || 1,
+          aiFeedback: feedback ? {
+            explanation: feedback.explanation,
+            strengths: feedback.strengths,
+            weaknesses: feedback.weaknesses,
+            improvementHint: feedback.improvement_hint,
+            score: feedback.score
+          } : null,
+          answeredAt: questionData.answered_at
+        };
+      }),
       generatedAt: new Date().toISOString()
     };
 
@@ -574,12 +725,36 @@ export default function StudentDetailPage() {
                   </div>
                 </div>
 
+                {/* Attempt Selector Tabs */}
+                {Object.keys(answersByAttempt).length > 1 && (
+                  <div className="mb-6 bg-slate-50 dark:bg-slate-800 rounded-lg p-2 border border-slate-200 dark:border-slate-700">
+                    <div className="flex gap-2">
+                      {Object.keys(answersByAttempt).sort((a, b) => Number(a) - Number(b)).map(attempt => (
+                        <button
+                          key={attempt}
+                          onClick={() => setSelectedAttempt(Number(attempt))}
+                          className={`px-6 py-3 rounded-lg font-semibold text-sm transition-all ${
+                            selectedAttempt === Number(attempt)
+                              ? 'bg-blue-600 text-white shadow-lg'
+                              : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600'
+                          }`}
+                        >
+                          Attempt {attempt}
+                          <span className="ml-2 text-xs opacity-75">
+                            ({answersByAttempt[attempt].length} questions)
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Question Analysis Table */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-xl flex items-center gap-2">
                       <List className="w-6 h-6" />
-                      Question Analysis
+                      Question Analysis {Object.keys(answersByAttempt).length > 1 && `- Attempt ${selectedAttempt}`}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
@@ -632,8 +807,10 @@ export default function StudentDetailPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {studentAnswers.map((questionData, index) => (
-                              <tr key={questionData.question_id} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors duration-200">
+                            {studentAnswers
+                              .filter(questionData => questionData.attempt === selectedAttempt)
+                              .map((questionData, index) => (
+                              <tr key={`${questionData.question_id}-${questionData.attempt}`} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors duration-200">
                                 <td className="p-5 border-r border-slate-100 dark:border-slate-700">
                                   <div className="flex items-center justify-center">
                                     <div className="w-10 h-10 bg-gradient-to-br from-slate-500 to-slate-600 rounded-full flex items-center justify-center shadow-lg">
@@ -663,8 +840,8 @@ export default function StudentDetailPage() {
                                 <td className="p-5 border-r border-slate-100 dark:border-slate-700">
                                   {questionData.student_answer ? (
                                     <div className={`px-4 py-3 rounded-lg text-sm font-semibold border shadow-sm ${
-                                      questionData.is_correct 
-                                        ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700' 
+                                      questionData.is_correct
+                                        ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700'
                                         : 'bg-rose-50 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-700'
                                     }`}>
                                       <div className="flex items-center gap-2">
@@ -728,10 +905,9 @@ export default function StudentDetailPage() {
                                           <div className="w-1 h-1 bg-slate-500 rounded-full"></div>
                                           AI Analysis
                                         </div>
-                                        <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
-                                          {generateAIFeedback(questionData.is_correct, questionData.student_answer, questionData.correct_answer) || 
-                                           <span className="text-slate-600/70 dark:text-slate-400/70 italic">Analysis pending...</span>}
-                                        </p>
+                                        <div className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+                                          {renderAIFeedback(questionData.answer_id, questionData.is_correct)}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>

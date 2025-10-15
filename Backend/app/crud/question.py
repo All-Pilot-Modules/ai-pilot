@@ -6,11 +6,24 @@ from typing import List, Optional
 
 # ✅ Create a single question
 def create_question(db: Session, question_data: QuestionCreate) -> Question:
-    new_q = Question(id=uuid4(), **question_data.dict())
-    db.add(new_q)
-    db.commit()
-    db.refresh(new_q)
-    return new_q
+    try:
+        # Convert Pydantic model to dict
+        question_dict = question_data.dict()
+
+        # Create new question with explicit ID
+        new_q = Question(
+            id=uuid4(),
+            **question_dict
+        )
+
+        db.add(new_q)
+        db.commit()
+        db.refresh(new_q)
+        return new_q
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Database error in create_question: {str(e)}")
+        raise
 
 # ✅ Bulk insert questions (used for testbank uploads)
 def bulk_create_questions(db: Session, questions: List[QuestionCreate]) -> List[Question]:

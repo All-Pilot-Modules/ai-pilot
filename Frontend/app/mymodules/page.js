@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Copy, RotateCcw, ExternalLink, Check } from "lucide-react";
+import { Copy, RotateCcw, ExternalLink, Check, Trash2, Settings } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/auth";
 import AssignmentFeaturesSelector from "@/components/AssignmentFeaturesSelector";
+import RubricQuickSelector from "@/components/rubric/RubricQuickSelector";
 
 export default function MyModules() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -19,6 +20,7 @@ export default function MyModules() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
+    rubric_template: 'default',
     assignment_config: {
       features: {
         multiple_attempts: {
@@ -47,6 +49,7 @@ export default function MyModules() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedItems, setCopiedItems] = useState({});
+  const [deletingModules, setDeletingModules] = useState({});
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -69,6 +72,7 @@ export default function MyModules() {
 
     setIsSubmitting(true);
     try {
+      // Create module first
       const moduleData = {
         teacher_id: user.id,
         name: formData.name,
@@ -77,11 +81,26 @@ export default function MyModules() {
         visibility: 'class-only',
         assignment_config: formData.assignment_config
       };
-      
-      await apiClient.post('/api/modules', moduleData);
-      setFormData({ 
-        name: '', 
+
+      const createdModule = await apiClient.post('/api/modules', moduleData);
+
+      // Apply rubric template if not default
+      if (formData.rubric_template && formData.rubric_template !== 'default') {
+        try {
+          await apiClient.post(
+            `/api/modules/${createdModule.id}/rubric/apply-template`,
+            null,
+            { params: { template_name: formData.rubric_template, preserve_custom_instructions: false } }
+          );
+        } catch (error) {
+          console.error('Failed to apply rubric template:', error);
+        }
+      }
+
+      setFormData({
+        name: '',
         description: '',
+        rubric_template: 'default',
         assignment_config: {
           features: {
             multiple_attempts: {
@@ -141,6 +160,29 @@ export default function MyModules() {
     }
   };
 
+  const deleteModule = async (moduleId, moduleName) => {
+    const confirmMessage = `Are you sure you want to delete "${moduleName}"?\n\n⚠️ WARNING: This will permanently delete:\n• All questions in this module\n• All student answers and progress\n• All uploaded documents\n• All student enrollments\n\nThis action cannot be undone!`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setDeletingModules(prev => ({ ...prev, [moduleId]: true }));
+
+    try {
+      await apiClient.delete(`/api/modules/${moduleId}`);
+      fetchModules(); // Refresh the list
+
+      // Show success message
+      alert(`Module "${moduleName}" has been successfully deleted.`);
+    } catch (error) {
+      console.error('Failed to delete module:', error);
+      alert(`Failed to delete module "${moduleName}". Please try again.`);
+    } finally {
+      setDeletingModules(prev => ({ ...prev, [moduleId]: false }));
+    }
+  };
+
   if (loading) {
     return <div className="p-8">Loading...</div>;
   }
@@ -196,9 +238,17 @@ export default function MyModules() {
                         className="mt-1"
                       />
                     </div>
-                    
+
+                    {/* Rubric Template Selector */}
+                    <div className="pt-2 border-t">
+                      <RubricQuickSelector
+                        value={formData.rubric_template}
+                        onChange={(template) => setFormData({...formData, rubric_template: template})}
+                      />
+                    </div>
+
                     {/* Assignment Features Section */}
-                    <div className="space-y-4">
+                    <div className="space-y-4 pt-2 border-t">
                       <div>
                         <Label className="text-sm font-medium">Assignment Features</Label>
                         <p className="text-xs text-muted-foreground">Configure how students interact with assignments</p>
@@ -327,11 +377,45 @@ export default function MyModules() {
 
                       {/* Actions */}
                       <div className="pt-2 border-t border-border">
-                        <Button asChild size="lg" className="w-full group-hover:shadow-md transition-shadow font-semibold">
-                          <Link href={`/dashboard?module=${encodeURIComponent(module.name)}`}>
-                            🚀 Manage
-                          </Link>
-                        </Button>
+                        <div className="space-y-2">
+                          <Button asChild size="lg" className="w-full group-hover:shadow-md transition-shadow font-semibold">
+                            <Link href={`/dashboard?module=${encodeURIComponent(module.name)}`}>
+                              🚀 Manage
+                            </Link>
+                          </Button>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              asChild
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                            >
+                              <Link href={`/dashboard/rubric?moduleId=${module.id}&moduleName=${encodeURIComponent(module.name)}`}>
+                                <Settings className="w-3 h-3 mr-1" />
+                                Rubric
+                              </Link>
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteModule(module.id, module.name)}
+                              disabled={deletingModules[module.id]}
+                              className="w-full"
+                            >
+                              {deletingModules[module.id] ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                                  Deleting...
+                                </>
+                              ) : (
+                                <>
+                                  <Trash2 className="w-3 h-3 mr-2" />
+                                  Delete
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </CardContent>

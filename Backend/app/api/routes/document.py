@@ -87,17 +87,44 @@ def update_document_by_id(
 # 📥 Download document by ID
 @router.get("/documents/{doc_id}/download")
 def download_document(
-    doc_id: str, 
+    doc_id: str,
     db: Session = Depends(get_db)
 ):
+    from fastapi.responses import RedirectResponse
+    from app.services.storage import storage_service
+    import re
+
     doc = fetch_document_by_id(db, doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    return FileResponse(
-        path=doc.storage_path,
-        filename=doc.file_name,
-        media_type='application/octet-stream'
-    )
+
+    # Check if storage_path is a URL (Supabase) or local path
+    if doc.storage_path.startswith('http://') or doc.storage_path.startswith('https://'):
+        # Extract the file path from the Supabase URL
+        # URL format: https://xxx.supabase.co/storage/v1/object/public/uploads/001/two/file.docx?
+        match = re.search(r'/storage/v1/object/public/[^/]+/(.+?)(\?|$)', doc.storage_path)
+
+        if match:
+            file_path = match.group(1)
+
+            # Get a signed URL from Supabase (valid for 1 hour)
+            try:
+                signed_url = storage_service.get_signed_url(file_path, expires_in=3600)
+                if signed_url:
+                    return RedirectResponse(url=signed_url)
+            except Exception as e:
+                print(f"Failed to get signed URL: {e}")
+
+        # Fallback: try the original URL (cleaned)
+        clean_url = doc.storage_path.rstrip('?')
+        return RedirectResponse(url=clean_url)
+    else:
+        # For local files, use FileResponse
+        return FileResponse(
+            path=doc.storage_path,
+            filename=doc.file_name,
+            media_type='application/octet-stream'
+        )
     
 
 @router.post("/documents/{doc_id}/reparse")

@@ -14,8 +14,9 @@ class Question(Base):
     text = Column(Text, nullable=False)
     slide_number = Column(Integer, nullable=True)
 
-    options = Column(JSONB, nullable=True)  # Only for MCQs
-    correct_answer = Column(String, nullable=True)
+    options = Column(JSONB, nullable=True)  # Only for MCQs - format: {"A": "Apple", "B": "Ball"}
+    correct_answer = Column(String, nullable=True)  # Legacy field - kept for backward compatibility
+    correct_option_id = Column(String, nullable=True)  # New field - stores "A", "B", "C", "D" for MCQs
 
     learning_outcome = Column(String, nullable=True)
     bloom_taxonomy = Column(String, nullable=True)

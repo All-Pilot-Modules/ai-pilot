@@ -170,57 +170,62 @@ export default function DocumentsPage() {
         title: uploadForm.title
       };
 
-      const response = await fetch(`/api/documents/${selectedDocument.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updateData),
-      });
-
-      if (response.ok) {
-        const updatedDoc = await response.json();
-        setDocuments(documents.map(doc => 
-          doc.id === selectedDocument.id ? updatedDoc : doc
-        ));
-        setIsEditOpen(false);
-        setSelectedDocument(null);
-      }
+      const updatedDoc = await apiClient.put(`/api/documents/${selectedDocument.id}`, updateData);
+      setDocuments(documents.map(doc =>
+        doc.id === selectedDocument.id ? updatedDoc : doc
+      ));
+      setIsEditOpen(false);
+      setSelectedDocument(null);
     } catch (error) {
       console.error('Edit error:', error);
+      alert('Failed to update document. Please try again.');
     }
   };
 
   const handleDelete = async (id) => {
-    try {
-      const response = await fetch(`/api/documents/${id}`, {
-        method: 'DELETE',
-      });
+    if (!confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
+      return;
+    }
 
-      if (response.ok) {
-        setDocuments(documents.filter(doc => doc.id !== id));
-      }
+    try {
+      await apiClient.delete(`/api/documents/${id}`);
+      setDocuments(documents.filter(doc => doc.id !== id));
     } catch (error) {
       console.error('Delete error:', error);
+      alert('Failed to delete document. Please try again.');
     }
   };
 
   const handleDownload = async (doc) => {
     try {
-      const response = await fetch(`/api/documents/${doc.id}/download`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = doc.file_name;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+      // For Supabase storage, we can directly download from the storage_path URL
+      if (doc.storage_path && doc.storage_path.startsWith('http')) {
+        // Open the Supabase URL directly in a new tab
+        window.open(doc.storage_path, '_blank');
+      } else {
+        // Fallback to API download endpoint for legacy files
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/api/documents/${doc.id}/download`, {
+          headers: {
+            ...(token && { 'Authorization': `Bearer ${token}` }),
+          }
+        });
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = doc.file_name;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+        }
       }
     } catch (error) {
       console.error('Download error:', error);
+      alert('Failed to download document. Please try again.');
     }
   };
 

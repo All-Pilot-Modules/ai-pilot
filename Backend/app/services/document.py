@@ -8,14 +8,21 @@ from uuid import UUID
 
 from app.models.question import Question
 from app.models.user import User
+from app.models.document import ProcessingStatus
 from app.schemas.document import DocumentCreate
 from app.schemas.question import QuestionCreate
 from app.crud.document import create_document
 from app.crud.question import bulk_create_questions
+from app.crud.document_chunk import bulk_create_chunks
 from app.utils.pdf_extractor import extract_text_from_pdf
+from app.utils.text_extractor import extract_text_from_file
+from app.utils.text_chunker import chunk_text
 from app.utils.question_parser import parse_testbank_text_to_questions
 from app.services.module import get_or_create_module
 from app.services.storage import storage_service
+from app.services.document_status import update_document_status, set_document_error
+from app.services.embedding import generate_embeddings_for_document
+from app.core.config import EMBED_MODEL
 
 
 def handle_document_upload(
@@ -132,6 +139,112 @@ def handle_document_upload(
             document.parse_status = "failed"
             document.parse_error = str(e)
             db.commit()
+        finally:
+            # Clean up temporary file
+            if temp_file_path and os.path.exists(temp_file_path):
+                os.unlink(temp_file_path)
+
+    # 📄 Extract and chunk regular documents (non-testbanks) for RAG
+    elif not is_testbank and file_ext in ['pdf', 'docx', 'doc', 'pptx', 'ppt', 'txt']:
+        temp_file_path = None
+        try:
+            # Update status: extracting
+            update_document_status(db, str(document.id), ProcessingStatus.EXTRACTING)
+
+            # Download file temporarily from Supabase
+            temp_file_path = storage_service.download_file_temporarily(supabase_file_path)
+
+            # Extract text from file
+            extracted_data = extract_text_from_file(temp_file_path, file_ext)
+            extracted_text = extracted_data['text']
+            extraction_metadata = extracted_data['metadata']
+
+            # Update status: extracted
+            update_document_status(
+                db,
+                str(document.id),
+                ProcessingStatus.EXTRACTED,
+                {
+                    'char_count': len(extracted_text),
+                    **extraction_metadata
+                }
+            )
+
+            # Update status: chunking
+            update_document_status(db, str(document.id), ProcessingStatus.CHUNKING)
+
+            # Chunk the text
+            chunks = chunk_text(
+                text=extracted_text,
+                chunk_size=1000,  # ~250 tokens
+                overlap=200       # Maintain context between chunks
+            )
+
+            # Save chunks to database
+            if chunks:
+                bulk_create_chunks(db, str(document.id), chunks)
+
+            # Update status: chunked
+            update_document_status(
+                db,
+                str(document.id),
+                ProcessingStatus.CHUNKED,
+                {
+                    'chunk_count': len(chunks),
+                    'total_chars': len(extracted_text),
+                    'avg_chunk_size': len(extracted_text) // len(chunks) if chunks else 0
+                }
+            )
+
+            print(f"✅ Document chunked successfully: {len(chunks)} chunks created")
+
+            # 🤖 Generate embeddings for chunks
+            if chunks:
+                try:
+                    # Update status: embedding
+                    update_document_status(db, str(document.id), ProcessingStatus.EMBEDDING)
+
+                    # Generate embeddings
+                    embedding_count = generate_embeddings_for_document(
+                        db=db,
+                        document_id=str(document.id),
+                        batch_size=100  # Process 100 chunks at a time
+                    )
+
+                    # Update status: embedded
+                    update_document_status(
+                        db,
+                        str(document.id),
+                        ProcessingStatus.EMBEDDED,
+                        {
+                            'embedding_count': embedding_count,
+                            'embedding_model': EMBED_MODEL
+                        }
+                    )
+
+                    print(f"✅ Generated {embedding_count} embeddings")
+
+                except Exception as embedding_error:
+                    print(f"❌ Failed to generate embeddings: {str(embedding_error)}")
+                    # Don't fail the whole upload if embeddings fail
+                    # Just log the error in metadata
+                    update_document_status(
+                        db,
+                        str(document.id),
+                        ProcessingStatus.CHUNKED,  # Revert to chunked status
+                        {
+                            'embedding_error': str(embedding_error)
+                        }
+                    )
+
+        except Exception as e:
+            print(f"❌ Failed to extract/chunk document: {str(e)}")
+            set_document_error(
+                db,
+                str(document.id),
+                f"Text extraction/chunking failed: {str(e)}",
+                {'error_type': 'extraction_error', 'file_type': file_ext}
+            )
         finally:
             # Clean up temporary file
             if temp_file_path and os.path.exists(temp_file_path):

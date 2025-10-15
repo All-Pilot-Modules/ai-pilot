@@ -1,12 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List
+import logging
 
 from app.schemas.student_answer import StudentAnswerCreate, StudentAnswerOut, StudentAnswerUpdate
 from app.schemas.module import ModuleOut
 from app.schemas.document import DocumentOut
 from app.schemas.question import QuestionOut
+from app.schemas.ai_feedback import AIFeedbackResponse
 from app.crud.student_answer import (
     create_student_answer,
     get_student_answer,
@@ -23,6 +25,60 @@ from app.crud.question import get_questions_by_module_id
 from app.database import get_db
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+# 🎯 Background task to generate feedback asynchronously
+def generate_feedback_background(student_id: str, module_id: str, attempt: int, answer_ids: List[str]):
+    """
+    Background task to generate AI feedback for multiple answers.
+    This runs asynchronously so the user doesn't have to wait.
+    """
+    from app.database import SessionLocal
+    from app.services.ai_feedback import AIFeedbackService
+    from app.models.student_answer import StudentAnswer
+
+    # Create a new database session for this background task
+    db = SessionLocal()
+
+    try:
+        logger.info(f"🎯 Starting background feedback generation for {len(answer_ids)} answers")
+        feedback_service = AIFeedbackService()
+
+        for answer_id in answer_ids:
+            try:
+                # Get the answer
+                answer = db.query(StudentAnswer).filter(StudentAnswer.id == answer_id).first()
+                if not answer:
+                    logger.error(f"❌ Answer {answer_id} not found")
+                    continue
+
+                logger.info(f"🔄 Generating feedback for question {answer.question_id}, answer {answer_id}")
+
+                # Generate feedback
+                feedback = feedback_service.generate_instant_feedback(
+                    db=db,
+                    student_answer=answer,
+                    question_id=str(answer.question_id),
+                    module_id=module_id
+                )
+
+                logger.info(f"✅ Feedback generated for question {answer.question_id}")
+
+            except Exception as e:
+                logger.error(f"❌ Failed to generate feedback for answer {answer_id}: {str(e)}")
+                import traceback
+                traceback.print_exc()
+
+        logger.info(f"✅ Background feedback generation completed for attempt {attempt}")
+
+    except Exception as e:
+        logger.error(f"❌ Background feedback generation failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        db.close()
+
 
 # 🔍 Join module with access code
 @router.post("/join-module", response_model=ModuleOut)
@@ -138,49 +194,64 @@ def submit_student_answer(
         # Create new answer
         created_answer = create_student_answer(db, answer_data)
     
-    # Generate instant AI feedback for first attempt
-    if answer_data.attempt == 1:
+    # Get module settings to determine max attempts
+    question = get_question_by_id(db, str(answer_data.question_id))
+    if not question:
+        return {
+            "success": True,
+            "answer": created_answer,
+            "feedback": None,
+            "message": "Answer submitted but question not found"
+        }
+
+    module_id = str(question.module_id)
+    module = get_module_by_id(db, module_id)
+
+    # Get max attempts from module settings (default to 2)
+    max_attempts = 2
+    if module and module.assignment_config:
+        multiple_attempts_config = module.assignment_config.get("features", {}).get("multiple_attempts", {})
+        max_attempts = multiple_attempts_config.get("max_attempts", 2)
+
+    # Generate feedback for all attempts EXCEPT the final/last attempt
+    # Example: max_attempts=2 → feedback on attempt 1, no feedback on attempt 2
+    # Example: max_attempts=3 → feedback on attempts 1 and 2, no feedback on attempt 3
+    should_generate_feedback = answer_data.attempt < max_attempts
+
+    if should_generate_feedback:
         try:
-            # Get question to find module_id
-            question = get_question_by_id(db, str(answer_data.question_id))
-            if question and question.document:
-                module_id = str(question.document.module_id)
-                
-                # Generate AI feedback
-                feedback_service = AIFeedbackService()
-                feedback = feedback_service.generate_instant_feedback(
-                    db=db,
-                    student_answer=created_answer,
-                    question_id=str(answer_data.question_id),
-                    module_id=module_id
-                )
-                
-                # Return enhanced response with feedback
-                return {
-                    "success": True,
-                    "answer": {
-                        "id": str(created_answer.id),
-                        "student_id": created_answer.student_id,
-                        "question_id": str(created_answer.question_id),
-                        "document_id": str(created_answer.document_id),
-                        "answer": created_answer.answer,
-                        "attempt": created_answer.attempt,
-                        "submitted_at": created_answer.submitted_at.isoformat()
-                    },
-                    "feedback": feedback,
-                    "attempt_number": 1,
-                    "can_retry": not feedback.get("is_correct", False),
-                    "max_attempts": 2
-                }
-            else:
-                # Fallback if question/module not found
-                return {
-                    "success": True,
-                    "answer": created_answer,
-                    "feedback": None,
-                    "message": "Answer submitted but feedback unavailable"
-                }
-                
+            print(f"🎯 ENDPOINT: should_generate_feedback=True, attempt={answer_data.attempt}, max_attempts={max_attempts}")
+            print(f"🎯 ENDPOINT: created_answer.id={created_answer.id}, answer_data={created_answer.answer}")
+
+            # Generate AI feedback
+            feedback_service = AIFeedbackService()
+            print(f"🎯 ENDPOINT: Calling generate_instant_feedback...")
+            feedback = feedback_service.generate_instant_feedback(
+                db=db,
+                student_answer=created_answer,
+                question_id=str(answer_data.question_id),
+                module_id=module_id
+            )
+            print(f"🎯 ENDPOINT: Feedback generated, checking if saved...")
+
+            # Return enhanced response with feedback
+            return {
+                "success": True,
+                "answer": {
+                    "id": str(created_answer.id),
+                    "student_id": created_answer.student_id,
+                    "question_id": str(created_answer.question_id),
+                    "document_id": str(created_answer.document_id),
+                    "answer": created_answer.answer,
+                    "attempt": created_answer.attempt,
+                    "submitted_at": created_answer.submitted_at.isoformat()
+                },
+                "feedback": feedback,
+                "attempt_number": answer_data.attempt,
+                "can_retry": not feedback.get("is_correct", False) and answer_data.attempt < max_attempts,
+                "max_attempts": max_attempts
+            }
+
         except Exception as e:
             # If feedback generation fails, still return successful answer submission
             return {
@@ -189,13 +260,14 @@ def submit_student_answer(
                 "feedback": None,
                 "error": f"Answer submitted but feedback failed: {str(e)}"
             }
-    
+
     else:
-        # For second attempt, return final result without feedback
+        # For final attempt, return result without feedback
         return {
             "success": True,
             "answer": created_answer,
             "attempt_number": answer_data.attempt,
+            "max_attempts": max_attempts,
             "final_submission": True,
             "message": "Final answer submitted successfully"
         }
@@ -323,3 +395,336 @@ def get_module_progress(
 
     progress = get_student_progress_by_module(db, student_id, module_id, attempt)
     return progress
+
+# 🧠 Get all AI feedback for a student in a module
+@router.get("/modules/{module_id}/feedback")
+def get_module_feedback(
+    module_id: UUID,
+    student_id: str = Query(..., description="Student ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all AI feedback for a student in a module (student-friendly view)
+    Returns filtered feedback without technical metadata
+    """
+    from app.crud.ai_feedback import get_student_module_feedback
+    from app.models.student_answer import StudentAnswer
+
+    # Get all feedback for student
+    feedback_list = get_student_module_feedback(db, student_id, module_id)
+
+    # Transform to student-friendly format
+    student_feedback = []
+    for feedback in feedback_list:
+        # Get the associated answer to find question_id
+        answer = db.query(StudentAnswer).filter(StudentAnswer.id == feedback.answer_id).first()
+        if not answer:
+            continue
+
+        # Extract only student-relevant fields from feedback_data
+        data = feedback.feedback_data or {}
+
+        student_view = {
+            "id": str(feedback.id),
+            "answer_id": str(feedback.answer_id),  # Include answer_id for frontend mapping
+            "question_id": str(answer.question_id),
+            "is_correct": feedback.is_correct,
+            "score": feedback.score,
+            "correctness_score": feedback.score,  # Alias for frontend compatibility
+            "explanation": data.get("explanation", ""),
+            "improvement_hint": data.get("improvement_hint"),
+            "concept_explanation": data.get("concept_explanation"),
+            "strengths": data.get("strengths"),
+            "weaknesses": data.get("weaknesses"),
+            "generated_at": feedback.generated_at.isoformat() if feedback.generated_at else None,
+            # Only show RAG usage as boolean, not sources
+            "has_course_materials": data.get("used_rag", False),
+            # For MCQ, include answer info
+            "selected_option": data.get("selected_option"),
+            "correct_option": data.get("correct_option"),
+            "available_options": data.get("available_options"),
+        }
+
+        student_feedback.append(student_view)
+
+    return student_feedback
+
+# 🧠 Get AI feedback for a specific question
+@router.get("/questions/{question_id}/feedback")
+def get_question_feedback(
+    question_id: UUID,
+    student_id: str = Query(..., description="Student ID"),
+    attempt: int = Query(1, description="Attempt number", ge=1, le=2),
+    db: Session = Depends(get_db)
+):
+    """
+    Get AI feedback for a specific student's answer to a question
+    """
+    from app.crud.ai_feedback import get_feedback_by_answer
+
+    # First get the student answer
+    answer = get_student_answer(db, student_id, question_id, attempt)
+    if not answer:
+        raise HTTPException(status_code=404, detail="Answer not found")
+
+    # Then get feedback for that answer
+    feedback = get_feedback_by_answer(db, answer.id)
+    if not feedback:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+
+    return feedback
+
+# 📝 Save answer (for auto-save, without feedback generation)
+@router.post("/save-answer")
+def save_student_answer(
+    answer_data: StudentAnswerCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Save student answer as draft (auto-save functionality).
+    This does NOT generate feedback - it only saves the answer.
+    """
+    # Check if answer already exists for this attempt
+    existing_answer = get_student_answer(
+        db, answer_data.student_id, answer_data.question_id, answer_data.attempt
+    )
+
+    if existing_answer:
+        # Update existing answer
+        update_data = StudentAnswerUpdate(answer=answer_data.answer)
+        updated_answer = update_student_answer(db, existing_answer.id, update_data)
+        return {
+            "success": True,
+            "answer": updated_answer,
+            "message": "Answer saved as draft"
+        }
+    else:
+        # Create new answer
+        created_answer = create_student_answer(db, answer_data)
+        return {
+            "success": True,
+            "answer": created_answer,
+            "message": "Answer saved as draft"
+        }
+
+# 🎯 Submit entire test with feedback generation
+@router.post("/modules/{module_id}/submit-test")
+def submit_test(
+    module_id: UUID,
+    student_id: str = Query(..., description="Student ID"),
+    attempt: int = Query(1, description="Attempt number", ge=1),
+    background_tasks: BackgroundTasks = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a test as submitted for a specific attempt.
+    This creates a TestSubmission record and triggers ASYNC feedback generation.
+    Returns immediately - feedback is generated in the background.
+    """
+    from app.crud.test_submission import (
+        create_submission,
+        has_submitted_attempt,
+        get_current_attempt_number
+    )
+    from app.models.student_answer import StudentAnswer
+
+    # Check if already submitted
+    if has_submitted_attempt(db, student_id, module_id, attempt):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Test already submitted for attempt {attempt}"
+        )
+
+    # Get module settings
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    # Get max attempts from module settings
+    max_attempts = 2
+    if module.assignment_config:
+        multiple_attempts_config = module.assignment_config.get("features", {}).get("multiple_attempts", {})
+        max_attempts = multiple_attempts_config.get("max_attempts", 2)
+
+    # Check if attempt number is valid
+    if attempt > max_attempts:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {max_attempts} attempts allowed"
+        )
+
+    # Get all answers for this attempt
+    answers = db.query(StudentAnswer).filter(
+        StudentAnswer.student_id == student_id,
+        StudentAnswer.module_id == module_id,
+        StudentAnswer.attempt == attempt
+    ).all()
+
+    if not answers:
+        raise HTTPException(
+            status_code=400,
+            detail="No answers found to submit"
+        )
+
+    # Create submission record
+    submission = create_submission(
+        db=db,
+        student_id=student_id,
+        module_id=module_id,
+        attempt=attempt,
+        questions_count=len(answers)
+    )
+
+    logger.info(f"✅ Test submitted - {len(answers)} questions")
+
+    # Trigger async feedback generation ONLY if not final attempt
+    if attempt < max_attempts:
+        answer_ids = [str(answer.id) for answer in answers]
+        logger.info(f"🚀 Triggering background feedback generation for {len(answer_ids)} answers")
+
+        # Add background task
+        if background_tasks:
+            background_tasks.add_task(
+                generate_feedback_background,
+                student_id=student_id,
+                module_id=str(module_id),
+                attempt=attempt,
+                answer_ids=answer_ids
+            )
+
+        return {
+            "success": True,
+            "submission_id": str(submission.id),
+            "attempt": attempt,
+            "questions_submitted": len(answers),
+            "can_retry": True,
+            "max_attempts": max_attempts,
+            "feedback_status": "generating",  # NEW: indicates feedback is being generated
+            "message": "Test submitted! Feedback is being generated in the background."
+        }
+    else:
+        # Final attempt - no feedback
+        return {
+            "success": True,
+            "submission_id": str(submission.id),
+            "attempt": attempt,
+            "questions_submitted": len(answers),
+            "can_retry": False,
+            "max_attempts": max_attempts,
+            "feedback_status": "none",  # No feedback for final attempt
+            "message": "Final attempt submitted successfully!"
+        }
+
+# 📊 Get submission status for a student in a module
+@router.get("/modules/{module_id}/submission-status")
+def get_submission_status(
+    module_id: UUID,
+    student_id: str = Query(..., description="Student ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get submission status for a student in a module.
+    Returns which attempts have been submitted and current attempt number.
+    """
+    from app.crud.test_submission import (
+        get_all_submissions,
+        get_current_attempt_number,
+        get_submission_count
+    )
+
+    # Get module settings for max attempts
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    max_attempts = 2
+    if module.assignment_config:
+        multiple_attempts_config = module.assignment_config.get("features", {}).get("multiple_attempts", {})
+        max_attempts = multiple_attempts_config.get("max_attempts", 2)
+
+    # Get all submissions
+    submissions = get_all_submissions(db, student_id, module_id)
+    current_attempt = get_current_attempt_number(db, student_id, module_id)
+    submission_count = get_submission_count(db, student_id, module_id)
+
+    return {
+        "student_id": student_id,
+        "module_id": str(module_id),
+        "submissions": [
+            {
+                "attempt": sub.attempt,
+                "submitted_at": sub.submitted_at.isoformat(),
+                "questions_count": sub.questions_count
+            }
+            for sub in submissions
+        ],
+        "current_attempt": current_attempt if current_attempt <= max_attempts else max_attempts,
+        "submission_count": submission_count,
+        "can_submit_again": submission_count < max_attempts,
+        "max_attempts": max_attempts,
+        "all_attempts_done": submission_count >= max_attempts
+    }
+
+
+# 🔄 Check feedback generation status (for real-time updates)
+@router.get("/modules/{module_id}/feedback-status")
+def get_feedback_status(
+    module_id: UUID,
+    student_id: str = Query(..., description="Student ID"),
+    attempt: int = Query(1, description="Attempt number", ge=1),
+    db: Session = Depends(get_db)
+):
+    """
+    Check the status of feedback generation for a student's test submission.
+    Returns which questions have feedback ready and which are still pending.
+    Used for real-time polling in the frontend.
+    """
+    from app.models.student_answer import StudentAnswer
+    from app.crud.ai_feedback import get_feedback_by_answer
+
+    # Get all answers for this attempt
+    answers = db.query(StudentAnswer).filter(
+        StudentAnswer.student_id == student_id,
+        StudentAnswer.module_id == module_id,
+        StudentAnswer.attempt == attempt
+    ).all()
+
+    if not answers:
+        return {
+            "total_questions": 0,
+            "feedback_ready": 0,
+            "feedback_pending": 0,
+            "questions": [],
+            "all_complete": True
+        }
+
+    # Check which answers have feedback
+    feedback_status = []
+    ready_count = 0
+
+    for answer in answers:
+        feedback = get_feedback_by_answer(db, answer.id)
+        has_feedback = feedback is not None
+
+        if has_feedback:
+            ready_count += 1
+
+        feedback_status.append({
+            "question_id": str(answer.question_id),
+            "answer_id": str(answer.id),
+            "has_feedback": has_feedback,
+            "feedback_id": str(feedback.id) if feedback else None
+        })
+
+    total = len(answers)
+    pending = total - ready_count
+    all_complete = ready_count == total
+
+    return {
+        "total_questions": total,
+        "feedback_ready": ready_count,
+        "feedback_pending": pending,
+        "progress_percentage": int((ready_count / total) * 100) if total > 0 else 0,
+        "all_complete": all_complete,
+        "questions": feedback_status
+    }

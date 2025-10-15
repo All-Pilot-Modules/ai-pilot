@@ -5,6 +5,7 @@ from datetime import datetime
 import uuid
 from typing import List, Optional
 import os
+from app.services.storage import storage_service
 
 def create_document(db: Session, doc_data: DocumentCreate) -> Document:
     new_doc = Document(
@@ -65,12 +66,31 @@ def delete_document(db: Session, document_id: str) -> Optional[Document]:
     if not doc:
         return None
 
-    # 🧹 Try to delete the physical file if it exists
+    # Get module info to construct Supabase path
+    from app.models.module import Module
+    module = db.query(Module).filter(Module.id == doc.module_id).first()
+
+    if module:
+        # 🧹 Delete from Supabase Storage
+        try:
+            storage_filename = f"{os.path.splitext(doc.file_name)[0]}_{doc.file_hash[:8]}.{doc.file_type}"
+            supabase_file_path = f"{doc.teacher_id}/{module.name}/{storage_filename}"
+
+            success = storage_service.delete_file(supabase_file_path)
+            if success:
+                print(f"✅ Deleted file from Supabase: {supabase_file_path}")
+            else:
+                print(f"[WARNING] Failed to delete file from Supabase: {supabase_file_path}")
+        except Exception as e:
+            print(f"[WARNING] Error deleting file from Supabase: {e}")
+
+    # 🧹 Try to delete local file if it exists (legacy support)
     try:
-        if os.path.exists(doc.storage_path):
+        if doc.storage_path and os.path.exists(doc.storage_path):
             os.remove(doc.storage_path)
+            print(f"✅ Deleted local file: {doc.storage_path}")
     except Exception as e:
-        print(f"[WARNING] Failed to delete file at {doc.storage_path}: {e}")
+        print(f"[WARNING] Failed to delete local file at {doc.storage_path}: {e}")
 
     db.delete(doc)
     db.commit()

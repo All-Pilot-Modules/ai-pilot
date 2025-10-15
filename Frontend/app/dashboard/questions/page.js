@@ -61,6 +61,7 @@ export default function QuestionsPage() {
     slide_number: "",
     options: ["", "", "", ""],
     correct_answer: "",
+    correct_option_id: "",
     learning_outcome: "",
     bloom_taxonomy: "",
     image_url: "",
@@ -152,6 +153,7 @@ export default function QuestionsPage() {
       slide_number: "",
       options: ["", "", "", ""],
       correct_answer: "",
+      correct_option_id: "",
       learning_outcome: "",
       bloom_taxonomy: "",
       image_url: "",
@@ -164,61 +166,37 @@ export default function QuestionsPage() {
     if (!questionForm.text || !currentModule) return;
 
     try {
-      // If no real document exists, we need to create one first
-      let documentId = moduleDocument?.id;
-      
-      if (!documentId || documentId.startsWith('virtual-')) {
-        // Create a real document for this module
-        const createDocData = {
-          title: `${currentModule.name} - Question Bank`,
-          file_name: 'questions.txt',
-          file_hash: `questions-${currentModule.id}`,
-          file_type: 'txt',
-          teacher_id: user.id,
-          module_id: currentModule.id,
-          storage_path: `/uploads/${currentModule.id}/questions.txt`,
-          index_path: null,
-          slide_count: null
-        };
-        
-        const newDoc = await fetch('/api/documents', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(createDocData),
-        });
-        
-        if (newDoc.ok) {
-          const docData = await newDoc.json();
-          documentId = docData.id;
-          setModuleDocument(docData);
-        } else {
-          console.error('Failed to create document');
-          return;
-        }
-      }
+      // Use existing document_id if available, or null if creating standalone questions
+      const documentId = (moduleDocument?.id && !moduleDocument.id.startsWith('virtual-'))
+        ? moduleDocument.id
+        : null;
 
       const payload = {
         ...questionForm,
-        document_id: documentId,
+        module_id: currentModule.id,  // ✅ Add module_id - REQUIRED!
+        document_id: documentId,  // Can be null for manually created questions
         slide_number: questionForm.slide_number ? parseInt(questionForm.slide_number) : null,
-        options: questionForm.type === "mcq" ? 
+        options: questionForm.type === "mcq" ?
           questionForm.options
             .filter(opt => opt.trim())
             .reduce((acc, opt, index) => ({
               ...acc,
               [String.fromCharCode(65 + index)]: opt
-            }), {}) 
-          : null
+            }), {})
+          : null,
+        correct_option_id: questionForm.type === "mcq" ? questionForm.correct_option_id : null,
+        correct_answer: questionForm.type !== "mcq" ? questionForm.correct_answer : null
       };
 
+      console.log('📝 Creating question with payload:', payload);
       const response = await apiClient.post('/api/questions', payload);
       setQuestions([response, ...questions]);
       resetForm();
       setShowCreateForm(false);
+      console.log('✅ Question created successfully:', response.id);
     } catch (error) {
-      console.error('Create error:', error);
+      console.error('❌ Create error:', error);
+      alert(`Failed to create question: ${error.message}\n\nPlease check the console for details.`);
     }
   };
 
@@ -231,14 +209,16 @@ export default function QuestionsPage() {
         ...questionForm,
         document_id: selectedQuestion.document_id, // Keep the original document_id
         slide_number: questionForm.slide_number ? parseInt(questionForm.slide_number) : null,
-        options: questionForm.type === "mcq" ? 
+        options: questionForm.type === "mcq" ?
           questionForm.options
             .filter(opt => opt.trim())
             .reduce((acc, opt, index) => ({
               ...acc,
               [String.fromCharCode(65 + index)]: opt
-            }), {}) 
-          : null
+            }), {})
+          : null,
+        correct_option_id: questionForm.type === "mcq" ? questionForm.correct_option_id : null,
+        correct_answer: questionForm.type !== "mcq" ? questionForm.correct_answer : null
       };
 
       const response = await apiClient.put(`/api/questions/${selectedQuestion.id}`, payload);
@@ -277,6 +257,7 @@ export default function QuestionsPage() {
       slide_number: question.slide_number?.toString() || "",
       options: optionsArray,
       correct_answer: question.correct_answer || "",
+      correct_option_id: question.correct_option_id || "",
       learning_outcome: question.learning_outcome || "",
       bloom_taxonomy: question.bloom_taxonomy || "",
       image_url: question.image_url || "",
@@ -338,10 +319,6 @@ export default function QuestionsPage() {
                     Create and manage questions for your module assessments
                   </p>
                 </div>
-                <Button onClick={() => setIsCreateMode(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Question
-                </Button>
               </div>
             </div>
 
@@ -415,14 +392,37 @@ export default function QuestionsPage() {
                       )}
 
                       <div>
-                        <Label htmlFor="correct_answer">Correct Answer</Label>
-                        <Input
-                          id="correct_answer"
-                          value={questionForm.correct_answer}
-                          onChange={(e) => setQuestionForm({...questionForm, correct_answer: e.target.value})}
-                          placeholder="Enter correct answer"
-                          className="mt-1"
-                        />
+                        <Label htmlFor="correct_answer">Correct Answer {questionForm.type === "mcq" && "*"}</Label>
+                        {questionForm.type === "mcq" ? (
+                          <Select
+                            value={questionForm.correct_option_id}
+                            onValueChange={(value) => setQuestionForm({...questionForm, correct_option_id: value})}
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder="Select the correct option" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {questionForm.options
+                                .filter(opt => opt.trim())
+                                .map((option, index) => {
+                                  const letter = String.fromCharCode(65 + index);
+                                  return (
+                                    <SelectItem key={letter} value={letter}>
+                                      {letter} - {option}
+                                    </SelectItem>
+                                  );
+                                })}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            id="correct_answer"
+                            value={questionForm.correct_answer}
+                            onChange={(e) => setQuestionForm({...questionForm, correct_answer: e.target.value})}
+                            placeholder="Enter correct answer"
+                            className="mt-1"
+                          />
+                        )}
                       </div>
 
                       <div>
@@ -535,7 +535,7 @@ export default function QuestionsPage() {
                                     {key}
                                   </span>
                                   <span>{option}</span>
-                                  {key === question.correct_answer && (
+                                  {key === (question.correct_option_id || question.correct_answer) && (
                                     <CheckCircle className="w-4 h-4 text-green-500" />
                                   )}
                                 </div>
@@ -668,26 +668,48 @@ export default function QuestionsPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit-slide_number">Slide Number</Label>
-                    <Input
-                      id="edit-slide_number"
-                      type="number"
-                      value={questionForm.slide_number}
-                      onChange={(e) => setQuestionForm({...questionForm, slide_number: e.target.value})}
-                      placeholder="Optional"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-correct_answer">Correct Answer</Label>
+                <div>
+                  <Label htmlFor="edit-slide_number">Slide Number</Label>
+                  <Input
+                    id="edit-slide_number"
+                    type="number"
+                    value={questionForm.slide_number}
+                    onChange={(e) => setQuestionForm({...questionForm, slide_number: e.target.value})}
+                    placeholder="Optional"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-correct_answer">Correct Answer {questionForm.type === "mcq" && "*"}</Label>
+                  {questionForm.type === "mcq" ? (
+                    <Select
+                      value={questionForm.correct_option_id}
+                      onValueChange={(value) => setQuestionForm({...questionForm, correct_option_id: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select the correct option" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {questionForm.options
+                          .filter(opt => opt.trim())
+                          .map((option, index) => {
+                            const letter = String.fromCharCode(65 + index);
+                            return (
+                              <SelectItem key={letter} value={letter}>
+                                {letter} - {option}
+                              </SelectItem>
+                            );
+                          })}
+                      </SelectContent>
+                    </Select>
+                  ) : (
                     <Input
                       id="edit-correct_answer"
                       value={questionForm.correct_answer}
                       onChange={(e) => setQuestionForm({...questionForm, correct_answer: e.target.value})}
                       placeholder="Enter correct answer"
                     />
-                  </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

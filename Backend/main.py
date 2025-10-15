@@ -2,6 +2,13 @@
 
 from fastapi import FastAPI
 from typing import Union
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s - %(name)s - %(message)s'
+)
 
 # 🚦 Import API routers
 from app.api.routes.test import router as test_router
@@ -37,9 +44,10 @@ app.include_router(student_answers_router, prefix="/api/student-answers", tags=[
 @app.on_event("startup")
 def on_startup():
     # ✅ Ensure all models are imported for table creation
-    from app.models import user, document, question, module, student_answer, question_queue
+    from app.models import user, document, question, module, student_answer, question_queue, document_chunk, document_embedding, ai_feedback
     print("🚀 App started! Creating tables...")
     Base.metadata.create_all(bind=engine)
+    print("✅ All tables created successfully (including ai_feedback table)")
 
 # 📎 Test route
 @app.get("/")

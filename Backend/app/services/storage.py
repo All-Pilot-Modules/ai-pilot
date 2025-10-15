@@ -98,14 +98,20 @@ class SupabaseStorageService:
             File content as bytes
         """
         try:
+            print(f"📥 Downloading file from Supabase: {file_path}")
             response = self.client.storage.from_(self.bucket_name).download(file_path)
+
+            print(f"Download response type: {type(response)}")
+            print(f"Download response size: {len(response) if isinstance(response, bytes) else 'N/A'} bytes")
 
             if isinstance(response, bytes):
                 return response
             else:
-                raise Exception("Failed to download file - invalid response")
+                print(f"Invalid response type: {type(response)}")
+                raise Exception(f"Failed to download file - invalid response type: {type(response)}")
 
         except Exception as e:
+            print(f"❌ Download error: {str(e)}")
             raise Exception(f"Failed to download file from Supabase: {str(e)}")
 
     def download_file_temporarily(self, file_path: str) -> str:
@@ -119,18 +125,25 @@ class SupabaseStorageService:
             Path to temporary file (caller must delete it)
         """
         try:
+            print(f"📂 Creating temporary file for: {file_path}")
             file_bytes = self.download_file(file_path)
 
-            # Create temporary file
+            # Create temporary file with correct extension
             suffix = os.path.splitext(file_path)[1] or '.tmp'
+            print(f"Creating temp file with suffix: {suffix}")
+
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+            temp_path = temp_file.name
 
-            with temp_file as f:
-                f.write(file_bytes)
+            print(f"Writing {len(file_bytes)} bytes to: {temp_path}")
+            temp_file.write(file_bytes)
+            temp_file.close()
 
-            return temp_file.name
+            print(f"✅ Temporary file created: {temp_path}")
+            return temp_path
 
         except Exception as e:
+            print(f"❌ Failed to create temporary file: {str(e)}")
             raise Exception(f"Failed to create temporary file: {str(e)}")
 
     def list_files(self, folder_path: str = "") -> List[dict]:
@@ -229,6 +242,41 @@ class SupabaseStorageService:
             Public URL
         """
         return self.client.storage.from_(self.bucket_name).get_public_url(file_path)
+
+    def get_signed_url(self, file_path: str, expires_in: int = 3600) -> Optional[str]:
+        """
+        Get a signed URL for private file access
+
+        Args:
+            file_path: Path in bucket
+            expires_in: URL expiration time in seconds (default 1 hour)
+
+        Returns:
+            Signed URL or None if failed
+        """
+        try:
+            print(f"Getting signed URL for: {file_path}, expires in {expires_in}s")
+            response = self.client.storage.from_(self.bucket_name).create_signed_url(
+                file_path,
+                expires_in
+            )
+
+            if hasattr(response, 'error') and response.error:
+                print(f"Signed URL error: {response.error}")
+                return None
+            elif isinstance(response, dict):
+                if 'error' in response:
+                    print(f"Signed URL error (dict): {response['error']}")
+                    return None
+                if 'signedURL' in response:
+                    return response['signedURL']
+
+            print(f"Signed URL response: {response}")
+            return None
+
+        except Exception as e:
+            print(f"Failed to get signed URL: {str(e)}")
+            return None
 
 
 # Global instance

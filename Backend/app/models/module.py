@@ -43,6 +43,44 @@ class Module(Base):
             "show_progress_bar": True,
             "show_streak_counter": True,
             "show_attempt_counter": True
+        },
+        "feedback_rubric": {
+            "enabled": True,
+            "grading_criteria": {
+                "accuracy": {"weight": 40, "description": "Correctness of the answer"},
+                "completeness": {"weight": 30, "description": "Covers all required points"},
+                "clarity": {"weight": 20, "description": "Clear and well-structured explanation"},
+                "depth": {"weight": 10, "description": "Level of detail and insight"}
+            },
+            "feedback_style": {
+                "tone": "encouraging",
+                "detail_level": "detailed",
+                "include_examples": True,
+                "reference_course_material": True
+            },
+            "rag_settings": {
+                "enabled": True,
+                "max_context_chunks": 3,
+                "similarity_threshold": 0.7,
+                "include_source_references": True
+            },
+            "custom_instructions": "",
+            "question_type_settings": {
+                "mcq": {
+                    "explain_correct": True,
+                    "explain_incorrect": True,
+                    "show_all_options_analysis": False
+                },
+                "short_answer": {
+                    "minimum_length": 50,
+                    "check_grammar": False
+                },
+                "essay": {
+                    "require_structure": True,
+                    "check_citations": False,
+                    "minimum_paragraphs": 2
+                }
+            }
         }
     })
 

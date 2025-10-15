@@ -1,16 +1,16 @@
 <div align="center">
   <h1>🚀 AI Education Pilot</h1>
   <p><strong>Empowering Education Through Artificial Intelligence</strong></p>
-  
-  <p>An innovative educational platform that integrates AI technology to revolutionize learning experiences for teachers and students.</p>
 
-  [![Contributors][contributors-shield]][contributors-url]
-  [![Forks][forks-shield]][forks-url]
-  [![Stargazers][stars-shield]][stars-url]
-  [![Issues][issues-shield]][issues-url]
-  [![License][license-shield]][license-url]
+<p>An innovative educational platform that integrates AI technology to revolutionize learning experiences for teachers and students.</p>
 
-  <p>
+  [Contributors][contributors-url]
+  [Forks][forks-url]
+  [Stargazers][stars-url]
+  [Issues][issues-url]
+  [License][license-url]
+
+<p>
     <a href="https://github.com/All-Pilot-Modules/AI-PILOT2/wiki"><strong>📚 Explore the Wiki »</strong></a>
     <br />
     <br />
@@ -40,6 +40,7 @@ AI Education Pilot is a comprehensive educational technology platform designed t
 ## 🏗️ Built With
 
 ### Backend
+
 - **[FastAPI](https://fastapi.tiangolo.com/)** - Modern, fast web framework for building APIs
 - **[LlamaIndex](https://www.llamaindex.ai/)** - Data framework for LLM applications
 - **[OpenAI](https://openai.com/)** - GPT models for AI-powered features
@@ -48,6 +49,7 @@ AI Education Pilot is a comprehensive educational technology platform designed t
 - **[JWT](https://jwt.io/)** - JSON Web Tokens for secure authentication
 
 ### Frontend
+
 - **[Next.js](https://nextjs.org/)** - React framework for production
 - **[React](https://reactjs.org/)** - Frontend JavaScript library
 - **[Tailwind CSS](https://tailwindcss.com/)** - Utility-first CSS framework
@@ -67,6 +69,7 @@ Our PostgreSQL database is designed for scalability and educational workflows:
 </div>
 
 **Core Tables:**
+
 - **Users** - Students, teachers, administrators with role-based access
 - **Modules** - Courses and learning modules with access codes
 - **Documents** - Educational content (PDFs, PowerPoints, Word docs)
@@ -86,12 +89,13 @@ Our PostgreSQL database is designed for scalability and educational workflows:
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/All-Pilot-Modules/AI-PILOT2.git
    cd AI-PILOT2
    ```
-
 2. **Set up the Backend**
+
    ```bash
    cd Backend
    pip install -r requirements.txt
@@ -99,8 +103,8 @@ Our PostgreSQL database is designed for scalability and educational workflows:
    # Edit .env file with your API keys and database configuration
    python main.py
    ```
-
 3. **Set up the Frontend**
+
    ```bash
    cd Frontend
    npm install
@@ -108,8 +112,8 @@ Our PostgreSQL database is designed for scalability and educational workflows:
    # Edit .env.local with your environment variables
    npm run dev
    ```
-
 4. **Access the Application**
+
    - Frontend: `http://localhost:3000`
    - Backend API: `http://localhost:8000`
    - API Documentation: `http://localhost:8000/docs`
@@ -117,6 +121,7 @@ Our PostgreSQL database is designed for scalability and educational workflows:
 ### Environment Variables
 
 #### Backend (.env)
+
 ```env
 OPENAI_API_KEY=your_openai_api_key
 DATABASE_URL=your_database_url
@@ -124,6 +129,7 @@ JWT_SECRET_KEY=your_jwt_secret
 ```
 
 #### Frontend (.env.local)
+
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_APP_URL=http://localhost:3000
@@ -132,6 +138,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 ## 📖 Usage
 
 ### For Teachers
+
 - Create AI-powered assignments with customizable difficulty levels
 - Manage student rosters and organize classes
 - Review and grade submissions with AI assistance
@@ -139,6 +146,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - Access comprehensive reporting tools
 
 ### For Students
+
 - Submit assignments through an intuitive interface
 - Access personalized learning resources
 - Track academic progress and achievements
@@ -146,6 +154,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - Collaborate with peers on group projects
 
 ### For Administrators
+
 - Monitor platform usage and performance
 - Manage user accounts and permissions
 - Configure AI model settings and parameters
@@ -171,10 +180,10 @@ For detailed documentation, tutorials, and guides, visit our comprehensive [Wiki
 
 ## 🛣️ Roadmap
 
-- [x] Core platform development
-- [x] AI-powered assignment generation
-- [x] User authentication and role management
-- [x] Comprehensive wiki documentation
+- [X] Core platform development
+- [X] AI-powered assignment generation
+- [X] User authentication and role management
+- [X] Comprehensive wiki documentation
 - [ ] Mobile application
 - [ ] Advanced analytics dashboard
 - [ ] Multi-language support
@@ -223,6 +232,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 </div>
 
 <!-- MARKDOWN LINKS & IMAGES -->
+
 [contributors-shield]: https://img.shields.io/github/contributors/All-Pilot-Modules/AI-PILOT2.svg?style=for-the-badge
 [contributors-url]: https://github.com/All-Pilot-Modules/AI-PILOT2/graphs/contributors
 [forks-shield]: https://img.shields.io/github/forks/All-Pilot-Modules/AI-PILOT2.svg?style=for-the-badge

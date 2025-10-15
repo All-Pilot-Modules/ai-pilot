@@ -72,6 +72,8 @@ export default function Dashboard() {
   });
   
   const [copiedItems, setCopiedItems] = useState({});
+  const [moduleId, setModuleId] = useState(null);
+  const [rubricSummary, setRubricSummary] = useState(null);
 
   // Load real module data from database
   useEffect(() => {
@@ -84,15 +86,28 @@ export default function Dashboard() {
     try {
       const modules = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
       const currentModule = modules.find(m => m.name === moduleName);
-      
+
       if (currentModule) {
+        setModuleId(currentModule.id);
         setModuleData(prev => ({
           ...prev,
           accessCode: currentModule.access_code
         }));
+
+        // Load rubric summary
+        loadRubricSummary(currentModule.id);
       }
     } catch (error) {
       console.error('Failed to load module data:', error);
+    }
+  };
+
+  const loadRubricSummary = async (id) => {
+    try {
+      const data = await apiClient.get(`/api/modules/${id}/rubric`);
+      setRubricSummary(data);
+    } catch (error) {
+      console.error('Failed to load rubric:', error);
     }
   };
 
@@ -372,6 +387,123 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* AI Feedback Rubric Configuration */}
+            {moduleId && (
+              <Card className="border-border bg-gradient-to-br from-purple-50/50 to-blue-50/50 dark:from-purple-950/20 dark:to-blue-950/20 mb-6">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                        AI Feedback Rubric
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Customize how AI generates feedback for student answers
+                      </p>
+                    </div>
+                    <Button asChild>
+                      <Link href={`/dashboard/rubric?moduleId=${moduleId}&moduleName=${encodeURIComponent(moduleName)}`}>
+                        <Settings className="w-4 h-4 mr-2" />
+                        Configure Rubric
+                      </Link>
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {rubricSummary ? (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      {/* Feedback Tone */}
+                      <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-800/50">
+                        <div className="p-2 rounded-md bg-blue-100 dark:bg-blue-900/30">
+                          <Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground">Feedback Tone</p>
+                          <p className="text-sm font-medium capitalize truncate">
+                            {rubricSummary.rubric?.feedback_style?.tone || 'Encouraging'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Detail Level */}
+                      <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-800/50">
+                        <div className="p-2 rounded-md bg-green-100 dark:bg-green-900/30">
+                          <Eye className="w-4 h-4 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground">Detail Level</p>
+                          <p className="text-sm font-medium capitalize truncate">
+                            {rubricSummary.rubric?.feedback_style?.detail_level || 'Detailed'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* RAG Status */}
+                      <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-800/50">
+                        <div className={`p-2 rounded-md ${
+                          rubricSummary.rubric?.rag_settings?.enabled
+                            ? 'bg-emerald-100 dark:bg-emerald-900/30'
+                            : 'bg-gray-100 dark:bg-gray-800'
+                        }`}>
+                          <BookOpen className={`w-4 h-4 ${
+                            rubricSummary.rubric?.rag_settings?.enabled
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-gray-400'
+                          }`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground">RAG Retrieval</p>
+                          <p className="text-sm font-medium">
+                            {rubricSummary.rubric?.rag_settings?.enabled ? (
+                              <Badge variant="default" className="text-xs">
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Enabled
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">
+                                <XCircle className="w-3 h-3 mr-1" />
+                                Disabled
+                              </Badge>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Custom Instructions */}
+                      <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-800/50">
+                        <div className={`p-2 rounded-md ${
+                          rubricSummary.rubric?.custom_instructions
+                            ? 'bg-orange-100 dark:bg-orange-900/30'
+                            : 'bg-gray-100 dark:bg-gray-800'
+                        }`}>
+                          <FileText className={`w-4 h-4 ${
+                            rubricSummary.rubric?.custom_instructions
+                              ? 'text-orange-600 dark:text-orange-400'
+                              : 'text-gray-400'
+                          }`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground">Instructions</p>
+                          <p className="text-sm font-medium">
+                            {rubricSummary.rubric?.custom_instructions ? (
+                              <Badge variant="default" className="text-xs">Configured</Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">Not set</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+                      <p className="text-sm">Loading rubric configuration...</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Quick Actions */}
             <Card className="border-border bg-card/50 backdrop-blur-sm">

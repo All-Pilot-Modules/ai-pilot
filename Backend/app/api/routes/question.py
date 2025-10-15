@@ -19,9 +19,15 @@ router = APIRouter()
 @router.post("/questions", response_model=QuestionOut)
 def create_question_api(payload: QuestionCreate, db: Session = Depends(get_db)):
     try:
-        return create_question(db, payload)
+        print(f"📝 Creating question with data: {payload.dict()}")
+        question = create_question(db, payload)
+        print(f"✅ Question created with ID: {question.id}")
+        return question
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"❌ Error creating question: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to create question: {str(e)}")
 
 # ✅ Get all questions for a document
 @router.get("/questions", response_model=List[QuestionOut])

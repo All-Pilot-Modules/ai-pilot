@@ -8,8 +8,9 @@ class QuestionBase(BaseModel):
     type: str = Field(..., description="Question type: mcq, short, or long")
     text: str = Field(..., description="Question text")
     slide_number: Optional[int] = Field(None, description="If from slides, optional slide number")
-    options: Optional[Dict[str, str]] = Field(None, description="Only for MCQs, e.g., {'A': 'Option A'}")
-    correct_answer: Optional[str] = Field(None, description="Correct answer key or text")
+    options: Optional[Dict[str, str]] = Field(None, description="Only for MCQs, e.g., {'A': 'Apple', 'B': 'Ball'}")
+    correct_answer: Optional[str] = Field(None, description="Legacy: Correct answer text (for short/long questions)")
+    correct_option_id: Optional[str] = Field(None, description="For MCQs: Correct option ID (A, B, C, or D)")
     learning_outcome: Optional[str] = Field(None, description="Outcome target if defined")
     bloom_taxonomy: Optional[str] = Field(None, description="Bloom's level like Remember, Analyze, etc.")
     image_url: Optional[str] = Field(None, description="URL to image if the question is visual")
@@ -24,6 +25,7 @@ class QuestionUpdate(BaseModel):
     slide_number: Optional[int] = None
     options: Optional[Dict[str, str]] = None
     correct_answer: Optional[str] = None
+    correct_option_id: Optional[str] = None
     learning_outcome: Optional[str] = None
     bloom_taxonomy: Optional[str] = None
     image_url: Optional[str] = None

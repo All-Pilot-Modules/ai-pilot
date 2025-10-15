@@ -13,6 +13,14 @@ from app.crud.module import (
     get_all_modules
 )
 from app.services.module import delete_module_with_documents
+from app.services.rubric import (
+    get_module_rubric,
+    update_module_rubric,
+    apply_template_to_module,
+    get_available_templates,
+    validate_rubric,
+    get_rubric_summary
+)
 from app.database import get_db
 
 router = APIRouter()
@@ -133,17 +141,124 @@ def regenerate_access_code(module_id: UUID, db: Session = Depends(get_db)):
     Regenerate a new access code for the module
     """
     import secrets
-    
+
     module = get_module_by_id(db, module_id)
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
-    
+
     # Generate new access code
     new_access_code = secrets.token_hex(3).upper()  # 6-character hex code
-    
+
     # Update module with new access code
     module.access_code = new_access_code
     db.commit()
     db.refresh(module)
-    
+
     return module
+
+# 📋 Get module rubric configuration
+@router.get("/modules/{module_id}/rubric")
+def get_rubric(module_id: UUID, db: Session = Depends(get_db)):
+    """
+    Get the feedback rubric configuration for a module
+    """
+    try:
+        rubric = get_module_rubric(db, str(module_id))
+        summary = get_rubric_summary(rubric)
+
+        return {
+            "module_id": str(module_id),
+            "rubric": rubric,
+            "summary": summary
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get rubric: {str(e)}")
+
+# 🖊️ Update module rubric
+@router.put("/modules/{module_id}/rubric")
+def update_rubric(
+    module_id: UUID,
+    rubric_config: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """
+    Update the feedback rubric configuration for a module
+    """
+    try:
+        updated_module = update_module_rubric(db, str(module_id), rubric_config)
+        rubric = get_module_rubric(db, str(module_id))
+
+        return {
+            "success": True,
+            "message": "Rubric updated successfully",
+            "module_id": str(updated_module.id),
+            "rubric": rubric
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update rubric: {str(e)}")
+
+# 📑 List available rubric templates
+@router.get("/rubric-templates")
+def list_rubric_templates():
+    """
+    Get list of available rubric templates
+    """
+    try:
+        templates = get_available_templates()
+        return {
+            "templates": templates,
+            "count": len(templates)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list templates: {str(e)}")
+
+# 🔄 Apply rubric template to module
+@router.post("/modules/{module_id}/rubric/apply-template")
+def apply_rubric_template(
+    module_id: UUID,
+    template_name: str = Query(..., description="Template name to apply"),
+    preserve_custom_instructions: bool = Query(True, description="Keep existing custom instructions"),
+    db: Session = Depends(get_db)
+):
+    """
+    Apply a rubric template to a module
+    """
+    try:
+        updated_module = apply_template_to_module(
+            db,
+            str(module_id),
+            template_name,
+            preserve_custom_instructions
+        )
+        rubric = get_module_rubric(db, str(module_id))
+
+        return {
+            "success": True,
+            "message": f"Template '{template_name}' applied successfully",
+            "module_id": str(updated_module.id),
+            "rubric": rubric
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to apply template: {str(e)}")
+
+# ✅ Validate rubric configuration
+@router.post("/rubric/validate")
+def validate_rubric_config(rubric_config: Dict[str, Any]):
+    """
+    Validate a rubric configuration without saving
+    """
+    try:
+        errors = validate_rubric(rubric_config)
+
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
