@@ -12,6 +12,7 @@ class ModuleBase(BaseModel):
     visibility: Optional[str] = "class-only"  # can be 'class-only' or 'public'
     slug: Optional[str] = None
     instructions: Optional[str] = None
+    feedback_rubric: Optional[Dict[str, Any]] = None  # Dedicated rubric configuration
     assignment_config: Optional[Dict[str, Any]] = {
         "features": {
             "multiple_attempts": {
@@ -45,6 +46,7 @@ class ModuleOut(ModuleBase):
     id: UUID
     access_code: str
     created_at: datetime
+    feedback_rubric: Optional[Dict[str, Any]] = None
     assignment_config: Optional[Dict[str, Any]] = None
 
     class Config:

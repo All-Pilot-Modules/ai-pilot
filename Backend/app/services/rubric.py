@@ -27,9 +27,13 @@ def get_module_rubric(db: Session, module_id: str) -> Dict[str, Any]:
     if not module:
         raise ValueError(f"Module {module_id} not found")
 
-    # Get rubric from assignment_config
-    assignment_config = module.assignment_config or {}
-    rubric = assignment_config.get("feedback_rubric", {})
+    # Try new dedicated column first
+    rubric = module.feedback_rubric
+
+    # Fall back to legacy location in assignment_config for backward compatibility
+    if not rubric:
+        assignment_config = module.assignment_config or {}
+        rubric = assignment_config.get("feedback_rubric", {})
 
     # If no rubric configured, use default
     if not rubric or not rubric.get("enabled", True):
@@ -135,14 +139,19 @@ def update_module_rubric(
     # Merge with defaults to ensure completeness
     merged_rubric = merge_with_defaults(rubric_config)
 
-    # Update assignment_config
-    assignment_config = module.assignment_config or {}
-    assignment_config["feedback_rubric"] = merged_rubric
-    module.assignment_config = assignment_config
+    # Update new dedicated column
+    module.feedback_rubric = merged_rubric
 
     # Mark as modified for JSONB update
     from sqlalchemy.orm.attributes import flag_modified
-    flag_modified(module, "assignment_config")
+    flag_modified(module, "feedback_rubric")
+
+    # Also remove from legacy location if it exists (for cleanup)
+    if module.assignment_config and "feedback_rubric" in module.assignment_config:
+        assignment_config = module.assignment_config.copy()
+        del assignment_config["feedback_rubric"]
+        module.assignment_config = assignment_config
+        flag_modified(module, "assignment_config")
 
     db.commit()
     db.refresh(module)
@@ -180,9 +189,12 @@ def apply_template_to_module(
     # Get existing custom instructions if preserving
     existing_instructions = ""
     if preserve_custom_instructions:
-        assignment_config = module.assignment_config or {}
-        existing_rubric = assignment_config.get("feedback_rubric", {})
-        existing_instructions = existing_rubric.get("custom_instructions", "")
+        # Try new column first, fall back to legacy location
+        existing_rubric = module.feedback_rubric
+        if not existing_rubric:
+            assignment_config = module.assignment_config or {}
+            existing_rubric = assignment_config.get("feedback_rubric", {})
+        existing_instructions = existing_rubric.get("custom_instructions", "") if existing_rubric else ""
 
     # Apply template
     new_rubric = deepcopy(template["config"])
@@ -191,14 +203,19 @@ def apply_template_to_module(
     if preserve_custom_instructions and existing_instructions:
         new_rubric["custom_instructions"] = existing_instructions
 
-    # Update module
-    assignment_config = module.assignment_config or {}
-    assignment_config["feedback_rubric"] = new_rubric
-    module.assignment_config = assignment_config
+    # Update new dedicated column
+    module.feedback_rubric = new_rubric
 
     # Mark as modified for JSONB update
     from sqlalchemy.orm.attributes import flag_modified
-    flag_modified(module, "assignment_config")
+    flag_modified(module, "feedback_rubric")
+
+    # Also remove from legacy location if it exists (for cleanup)
+    if module.assignment_config and "feedback_rubric" in module.assignment_config:
+        assignment_config = module.assignment_config.copy()
+        del assignment_config["feedback_rubric"]
+        module.assignment_config = assignment_config
+        flag_modified(module, "assignment_config")
 
     db.commit()
     db.refresh(module)

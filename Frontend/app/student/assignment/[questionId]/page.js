@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 // RadioGroup not available - using custom implementation
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
+import { LoadingCard } from "@/components/ui/loading-overlay";
 import { 
   ArrowLeft,
   Clock,
@@ -167,10 +169,7 @@ export default function StudentAssignmentPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading assignment...</p>
-        </div>
+        <LoadingCard message="Loading assignment..." />
       </div>
     );
   }
@@ -403,7 +402,10 @@ export default function StudentAssignmentPage() {
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {submitting ? (
-                  "Submitting..."
+                  <>
+                    <Spinner size="sm" className="h-4 w-4 mr-2" />
+                    Submitting...
+                  </>
                 ) : (
                   <>
                     <Send className="w-4 h-4 mr-2" />

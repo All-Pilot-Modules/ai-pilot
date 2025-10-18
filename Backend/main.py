@@ -19,6 +19,7 @@ from app.api.routes.question import router as question_router
 from app.api.routes.module import router as module_router
 from app.api.routes.student import router as student_router
 from app.api.routes.student_answers import router as student_answers_router
+from app.api.routes.chat import router as chat_router
 
 from app.core.config import add_cors
 from app.database import engine
@@ -39,15 +40,16 @@ app.include_router(question_router, prefix="/api", tags=["Questions"])
 app.include_router(module_router, prefix="/api", tags=["module"])
 app.include_router(student_router, prefix="/api/student", tags=["Student"])
 app.include_router(student_answers_router, prefix="/api/student-answers", tags=["Student Answers"])
+app.include_router(chat_router, prefix="/api", tags=["Chat"])
 
 # 🚀 Startup event to create all tables and import all models
 @app.on_event("startup")
 def on_startup():
     # ✅ Ensure all models are imported for table creation
-    from app.models import user, document, question, module, student_answer, question_queue, document_chunk, document_embedding, ai_feedback
+    from app.models import user, document, question, module, student_answer, question_queue, document_chunk, document_embedding, ai_feedback, chat_conversation, chat_message
     print("🚀 App started! Creating tables...")
     Base.metadata.create_all(bind=engine)
-    print("✅ All tables created successfully (including ai_feedback table)")
+    print("✅ All tables created successfully (including ai_feedback and chat tables)")
 
 # 📎 Test route
 @app.get("/")

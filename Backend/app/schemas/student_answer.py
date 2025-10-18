@@ -9,7 +9,7 @@ class StudentAnswerBase(BaseModel):
     module_id: UUID = Field(..., description="Module ID containing the question")
     document_id: Optional[UUID] = Field(None, description="Optional document ID if question came from a document")
     answer: Dict[str, Any] = Field(..., description="Student's answer - supports MCQ selection + text explanation")
-    attempt: int = Field(..., description="Attempt number (1 or 2)", ge=1, le=2)
+    attempt: int = Field(..., description="Attempt number", ge=1)
 
 class StudentAnswerCreate(StudentAnswerBase):
     pass

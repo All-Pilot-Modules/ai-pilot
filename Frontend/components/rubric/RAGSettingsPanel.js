@@ -19,6 +19,7 @@ export default function RAGSettingsPanel({ value, onChange }) {
   const maxChunks = value?.max_context_chunks ?? 3;
   const threshold = value?.similarity_threshold ?? 0.7;
   const includeReferences = value?.include_source_references ?? true;
+  const includeDocumentLocations = value?.include_document_locations ?? true;
 
   return (
     <div className="space-y-6">
@@ -95,6 +96,21 @@ export default function RAGSettingsPanel({ value, onChange }) {
                 id="include_refs"
                 checked={includeReferences}
                 onCheckedChange={(checked) => updateRAG('include_source_references', checked)}
+              />
+            </div>
+
+            {/* Include Document Location References */}
+            <div className="flex items-center justify-between pt-2 border-t">
+              <div className="space-y-0.5">
+                <Label htmlFor="include_locations">Include Page/Slide References</Label>
+                <p className="text-xs text-muted-foreground">
+                  Direct students to specific pages or slides (e.g., "Review Lab 6, Page 3")
+                </p>
+              </div>
+              <Switch
+                id="include_locations"
+                checked={includeDocumentLocations}
+                onCheckedChange={(checked) => updateRAG('include_document_locations', checked)}
               />
             </div>
           </CardContent>

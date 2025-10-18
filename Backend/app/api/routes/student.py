@@ -428,6 +428,7 @@ def get_module_feedback(
             "id": str(feedback.id),
             "answer_id": str(feedback.answer_id),  # Include answer_id for frontend mapping
             "question_id": str(answer.question_id),
+            "attempt": answer.attempt,  # Include attempt number for frontend grouping
             "is_correct": feedback.is_correct,
             "score": feedback.score,
             "correctness_score": feedback.score,  # Alias for frontend compatibility

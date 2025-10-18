@@ -50,6 +50,8 @@ import {
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/auth";
+import { SkeletonDocumentCard } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function DocumentsPage() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -58,6 +60,9 @@ export default function DocumentsPage() {
   
   const [documents, setDocuments] = useState([]);
   const [currentModule, setCurrentModule] = useState(null);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(null);
 
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -78,10 +83,11 @@ export default function DocumentsPage() {
 
   const fetchModuleAndDocuments = async () => {
     try {
+      setIsLoadingDocuments(true);
       // First get the module info to get module_id
       const moduleData = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
       const module = moduleData.find(m => m.name === moduleName);
-      
+
       if (module) {
         setCurrentModule(module);
         // Then fetch documents for this module
@@ -90,6 +96,8 @@ export default function DocumentsPage() {
       }
     } catch (error) {
       console.error('Failed to fetch module or documents:', error);
+    } finally {
+      setIsLoadingDocuments(false);
     }
   };
 
@@ -132,6 +140,7 @@ export default function DocumentsPage() {
     if (!uploadForm.file || !currentModule) return;
 
     try {
+      setIsUploading(true);
       const formData = new FormData();
       formData.append('file', uploadForm.file);
       formData.append('module_name', currentModule.name);
@@ -158,6 +167,8 @@ export default function DocumentsPage() {
       }
     } catch (error) {
       console.error('Upload error:', error);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -188,11 +199,14 @@ export default function DocumentsPage() {
     }
 
     try {
+      setIsDeleting(id);
       await apiClient.delete(`/api/documents/${id}`);
       setDocuments(documents.filter(doc => doc.id !== id));
     } catch (error) {
       console.error('Delete error:', error);
       alert('Failed to delete document. Please try again.');
+    } finally {
+      setIsDeleting(null);
     }
   };
 
@@ -339,11 +353,18 @@ export default function DocumentsPage() {
                     </div>
                     <DrawerFooter>
                       <div className="flex justify-end gap-3">
-                        <Button type="button" variant="outline" onClick={() => setIsUploadOpen(false)}>
+                        <Button type="button" variant="outline" onClick={() => setIsUploadOpen(false)} disabled={isUploading}>
                           Cancel
                         </Button>
-                        <Button type="submit" onClick={handleUpload}>
-                          Upload Document
+                        <Button type="submit" onClick={handleUpload} disabled={isUploading}>
+                          {isUploading ? (
+                            <>
+                              <Spinner size="sm" className="h-4 w-4 mr-2" />
+                              Uploading...
+                            </>
+                          ) : (
+                            "Upload Document"
+                          )}
                         </Button>
                       </div>
                     </DrawerFooter>
@@ -370,7 +391,13 @@ export default function DocumentsPage() {
 
             {/* Documents List */}
             <div className="space-y-4">
-              {filteredDocuments.map((doc) => (
+              {isLoadingDocuments ? (
+                // Show skeleton loaders while loading
+                Array.from({ length: 3 }).map((_, i) => (
+                  <SkeletonDocumentCard key={i} />
+                ))
+              ) : filteredDocuments.length > 0 ? (
+                filteredDocuments.map((doc) => (
                 <Card key={doc.id} className="border-0 shadow-sm bg-white dark:bg-slate-900/50 hover:shadow-md transition-all duration-200">
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between gap-4">
@@ -422,23 +449,31 @@ export default function DocumentsPage() {
                           <Edit3 className="h-4 w-4 mr-1" />
                           Edit
                         </Button>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
                           onClick={() => handleDelete(doc.id)}
+                          disabled={isDeleting === doc.id}
                         >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Delete
+                          {isDeleting === doc.id ? (
+                            <>
+                              <Spinner size="sm" className="h-4 w-4 mr-1" />
+                              Deleting...
+                            </>
+                          ) : (
+                            <>
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Delete
+                            </>
+                          )}
                         </Button>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-
-            {filteredDocuments.length === 0 && (
+              ))
+              ) : (
               <Card className="border-2 border-dashed border-muted-foreground/25 bg-muted/5">
                 <CardContent className="py-16 text-center">
                   <FolderOpen className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
@@ -459,7 +494,8 @@ export default function DocumentsPage() {
                   )}
                 </CardContent>
               </Card>
-            )}
+              )}
+            </div>
           </div>
         </div>
 

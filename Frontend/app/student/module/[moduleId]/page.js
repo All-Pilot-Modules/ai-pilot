@@ -26,6 +26,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import { apiClient } from "@/lib/auth";
+import ChatTab from './ChatTab';
 
 export default function StudentModulePage() {
   const params = useParams();
@@ -45,6 +46,8 @@ export default function StudentModulePage() {
   const [assignments, setAssignments] = useState([]);
   const [userProgress, setUserProgress] = useState({});
   const [feedbackData, setFeedbackData] = useState({});
+  const [feedbackByAttempt, setFeedbackByAttempt] = useState({}); // Group feedback by attempt number
+  const [selectedAttempt, setSelectedAttempt] = useState(1); // Currently selected attempt to view
   const [submissionStatus, setSubmissionStatus] = useState(null); // Track submission status
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -70,6 +73,12 @@ export default function StudentModulePage() {
     setModuleAccess(access);
     loadModuleContent(access);
   }, [moduleId, router]);
+
+  // Effect to update feedbackData when selectedAttempt changes
+  useEffect(() => {
+    const currentFeedback = feedbackByAttempt[selectedAttempt] || {};
+    setFeedbackData(currentFeedback);
+  }, [selectedAttempt, feedbackByAttempt]);
 
   // Effect to start polling when tab changes to feedback
   useEffect(() => {
@@ -113,21 +122,38 @@ export default function StudentModulePage() {
         `/api/student/modules/${moduleId}/feedback?student_id=${access.studentId}`
       );
 
-      // Transform array of feedback into object with questionId as key
-      const feedbackMap = {};
+      // Group feedback by attempt
+      const byAttempt = {};
       const answeredMap = {};
+
       if (response && Array.isArray(response)) {
         response.forEach(feedbackItem => {
-          feedbackMap[feedbackItem.question_id] = feedbackItem;
-          // A question is answered if it has an answer_id (meaning a StudentAnswer exists)
+          const attempt = feedbackItem.attempt || 1;
+
+          // Initialize attempt group if needed
+          if (!byAttempt[attempt]) {
+            byAttempt[attempt] = {};
+          }
+
+          // Add feedback to the attempt group
+          byAttempt[attempt][feedbackItem.question_id] = feedbackItem;
+
+          // Track answered questions across all attempts
           answeredMap[feedbackItem.question_id] = true;
         });
       }
 
-      setFeedbackData(feedbackMap);
+      setFeedbackByAttempt(byAttempt);
       setAnsweredQuestions(answeredMap);
-      console.log(`✅ Loaded ${Object.keys(feedbackMap).length} feedback items from database`);
-      return feedbackMap;
+
+      // Also set the currently selected attempt's feedback for backward compatibility
+      const currentFeedback = byAttempt[selectedAttempt] || {};
+      setFeedbackData(currentFeedback);
+
+      const totalFeedback = Object.values(byAttempt).reduce((sum, attempt) => sum + Object.keys(attempt).length, 0);
+      console.log(`✅ Loaded ${totalFeedback} feedback items from database (${Object.keys(byAttempt).length} attempts)`);
+
+      return byAttempt;
     } catch (error) {
       console.error('Failed to load feedback:', error);
       // Don't fail the whole page if feedback loading fails
@@ -155,10 +181,12 @@ export default function StudentModulePage() {
 
       setFeedbackStatus(status);
 
-      // If all feedback is complete, reload feedback data and stop polling
+      // Load feedback data on every poll to show them as they're generated
+      await loadFeedbackForAnswers(access);
+
+      // If all feedback is complete, stop polling
       if (status.all_complete) {
-        console.log('✅ All feedback generated! Reloading feedback data...');
-        await loadFeedbackForAnswers(access);
+        console.log('✅ All feedback generated!');
         setIsPolling(false);
         return true; // All complete
       }
@@ -274,8 +302,9 @@ export default function StudentModulePage() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading module content...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-6"></div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Loading module content...</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">Please wait while we prepare everything for you</p>
         </div>
       </div>
     );
@@ -457,13 +486,13 @@ export default function StudentModulePage() {
                       </div>
                       <div className="text-right">
                         <Badge variant="outline" className="mb-2">
-                          {submissionStatus?.submission_count || 0} / 2 attempts used
+                          {submissionStatus?.submission_count || 0} / {submissionStatus?.max_attempts || 2} attempts used
                         </Badge>
                         <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                           <div
                             className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                             style={{
-                              width: `${submissionStatus ? ((submissionStatus.submission_count || 0) / 2) * 100 : 0}%`
+                              width: `${submissionStatus ? ((submissionStatus.submission_count || 0) / (submissionStatus.max_attempts || 2)) * 100 : 0}%`
                             }}
                           ></div>
                         </div>
@@ -517,6 +546,16 @@ export default function StudentModulePage() {
                           // Don't show button if all attempts are done
                           if (allAttemptsDone) {
                             return null;
+                          }
+
+                          // Don't show button if feedback is being generated
+                          if (isPolling) {
+                            return (
+                              <div className="flex items-center gap-2 text-sm text-blue-600">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                <span>Feedback is being generated...</span>
+                              </div>
+                            );
                           }
 
                           return (
@@ -603,6 +642,26 @@ export default function StudentModulePage() {
 
             {Object.keys(feedbackData).length > 0 ? (
               <>
+                {/* Attempt Selector */}
+                {Object.keys(feedbackByAttempt).length > 1 && (
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">View Attempt:</span>
+                    <div className="flex gap-2">
+                      {Object.keys(feedbackByAttempt).sort((a, b) => Number(a) - Number(b)).map(attemptNum => (
+                        <Button
+                          key={attemptNum}
+                          onClick={() => setSelectedAttempt(Number(attemptNum))}
+                          variant={selectedAttempt === Number(attemptNum) ? "default" : "outline"}
+                          size="sm"
+                          className={selectedAttempt === Number(attemptNum) ? "bg-blue-600 hover:bg-blue-700" : ""}
+                        >
+                          Attempt {attemptNum}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Summary Card */}
                 <Card className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/20 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
                   <CardContent className="p-6">
@@ -612,7 +671,9 @@ export default function StudentModulePage() {
                           <Brain className="w-8 h-8 text-white" />
                         </div>
                         <div>
-                          <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Feedback for Your First Attempt</h3>
+                          <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                            Feedback for Attempt {selectedAttempt}
+                          </h3>
                           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                             {Object.values(feedbackData).filter(f => f.is_correct).length} out of {Object.keys(feedbackData).length} correct
                           </p>
@@ -622,7 +683,7 @@ export default function StudentModulePage() {
                         <div className="text-4xl font-bold text-blue-600">
                           {Math.round((Object.values(feedbackData).filter(f => f.is_correct).length / Object.keys(feedbackData).length) * 100)}%
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Score on Attempt 1</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Score on Attempt {selectedAttempt}</p>
                       </div>
                     </div>
 
@@ -630,17 +691,26 @@ export default function StudentModulePage() {
                     {(() => {
                       const hasIncorrect = Object.values(feedbackData).some(f => !f.is_correct);
                       const allAttemptsDone = submissionStatus?.all_attempts_done || false;
+                      const currentAttempt = submissionStatus?.current_attempt || 1;
+                      const maxAttempts = submissionStatus?.max_attempts || 2;
+                      const latestAttemptWithFeedback = Math.max(...Object.keys(feedbackByAttempt).map(Number));
 
-                      if (!hasIncorrect || allAttemptsDone) {
+                      // Only show button if:
+                      // 1. There are incorrect answers
+                      // 2. Not all attempts are done
+                      // 3. User is viewing the most recent attempt's feedback
+                      if (!hasIncorrect || allAttemptsDone || selectedAttempt !== latestAttemptWithFeedback) {
                         return null;
                       }
+
+                      const nextAttemptNumber = currentAttempt;
 
                       return (
                         <div className="mt-6 pt-6 border-t border-blue-300 dark:border-blue-700">
                           <div className="flex items-center justify-between">
                             <div>
                               <p className="font-medium text-gray-900 dark:text-white text-lg">
-                                Ready for your second attempt?
+                                Ready for attempt {nextAttemptNumber}?
                               </p>
                               <p className="text-sm text-gray-600 dark:text-gray-400">
                                 Review the feedback below, then start fresh with empty answers to improve your score
@@ -652,7 +722,7 @@ export default function StudentModulePage() {
                               size="lg"
                             >
                               <Target className="w-4 h-4 mr-2" />
-                              Start Second Attempt
+                              Start Attempt {nextAttemptNumber}
                             </Button>
                           </div>
                         </div>
@@ -666,7 +736,7 @@ export default function StudentModulePage() {
                           <div className="text-6xl mb-2">🎉</div>
                           <p className="text-xl font-bold text-gray-900 dark:text-white">Perfect Score!</p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Great job! You got all questions correct on the first try.
+                            Great job! You got all questions correct on attempt {selectedAttempt}.
                           </p>
                         </div>
                       </div>
@@ -909,111 +979,7 @@ export default function StudentModulePage() {
 
           {/* Chat Tab */}
           <TabsContent value="chat" className="space-y-6">
-            <Card className="h-[700px] flex flex-col">
-              <CardHeader className="border-b bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center">
-                    <Brain className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl">AI Tutor Chat</CardTitle>
-                    <CardDescription>Ask me anything about the course materials</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
-                {/* AI Welcome Message */}
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center flex-shrink-0">
-                    <Brain className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-tl-none p-4 max-w-[80%]">
-                      <p className="text-sm text-gray-900 dark:text-gray-100">
-                        Hi! I'm your AI tutor. I can help you understand the course materials better.
-                        Feel free to ask me any questions about the topics covered in this module!
-                      </p>
-                    </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">Just now</span>
-                  </div>
-                </div>
-
-                {/* Sample User Message */}
-                <div className="flex items-start gap-3 justify-end">
-                  <div className="flex-1 flex flex-col items-end">
-                    <div className="bg-blue-600 rounded-2xl rounded-tr-none p-4 max-w-[80%]">
-                      <p className="text-sm text-white">
-                        Can you explain the main concepts from the first module?
-                      </p>
-                    </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">Just now</span>
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-white" />
-                  </div>
-                </div>
-
-                {/* Sample AI Response */}
-                <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center flex-shrink-0">
-                    <Brain className="w-4 h-4 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-tl-none p-4 max-w-[80%]">
-                      <p className="text-sm text-gray-900 dark:text-gray-100">
-                        Of course! The main concepts in the first module cover several important topics.
-                        Let me break them down for you:
-                      </p>
-                      <ul className="list-disc list-inside mt-2 space-y-1 text-sm text-gray-900 dark:text-gray-100">
-                        <li>Foundational principles and key definitions</li>
-                        <li>Core theories and their practical applications</li>
-                        <li>Important methodologies and best practices</li>
-                      </ul>
-                      <p className="text-sm text-gray-900 dark:text-gray-100 mt-2">
-                        Would you like me to dive deeper into any specific concept?
-                      </p>
-                    </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">Just now</span>
-                  </div>
-                </div>
-
-                {/* Coming Soon Note */}
-                <div className="flex justify-center py-8">
-                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 max-w-md">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-                      <p className="font-semibold text-yellow-900 dark:text-yellow-100 text-sm">
-                        Feature Coming Soon!
-                      </p>
-                    </div>
-                    <p className="text-xs text-yellow-800 dark:text-yellow-200">
-                      The interactive chat feature is currently under development.
-                      Soon you'll be able to ask questions and get AI-powered help with course materials in real-time.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-
-              {/* Chat Input (Disabled for now) */}
-              <div className="border-t p-4">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Ask a question about course materials... (Coming soon)"
-                    disabled
-                    className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-400 cursor-not-allowed"
-                  />
-                  <Button disabled className="px-6">
-                    <MessageSquare className="w-4 h-4 mr-2" />
-                    Send
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
-                  This is a preview. Full functionality will be available soon.
-                </p>
-              </div>
-            </Card>
+            <ChatTab moduleId={moduleId} moduleAccess={moduleAccess} />
           </TabsContent>
 
           {/* Materials Tab */}
@@ -1088,14 +1054,14 @@ export default function StudentModulePage() {
                       <div className="flex justify-between text-sm mb-2">
                         <span>Attempts Completed</span>
                         <span>
-                          {submissionStatus?.submission_count || 0} / 2
+                          {submissionStatus?.submission_count || 0} / {submissionStatus?.max_attempts || 2}
                         </span>
                       </div>
                       <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                         <div
                           className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                           style={{
-                            width: `${submissionStatus ? ((submissionStatus.submission_count || 0) / 2) * 100 : 0}%`
+                            width: `${submissionStatus ? ((submissionStatus.submission_count || 0) / (submissionStatus.max_attempts || 2)) * 100 : 0}%`
                           }}
                         ></div>
                       </div>

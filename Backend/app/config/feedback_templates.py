@@ -24,8 +24,9 @@ RUBRIC_TEMPLATES = {
             "rag_settings": {
                 "enabled": True,
                 "max_context_chunks": 3,
-                "similarity_threshold": 0.7,
-                "include_source_references": True
+                "similarity_threshold": 0.4,  # Lowered to capture more context
+                "include_source_references": True,
+                "include_document_locations": True
             },
             "custom_instructions": "",
             "question_type_settings": {
@@ -67,8 +68,9 @@ RUBRIC_TEMPLATES = {
             "rag_settings": {
                 "enabled": True,
                 "max_context_chunks": 3,
-                "similarity_threshold": 0.75,
-                "include_source_references": True
+                "similarity_threshold": 0.4,  # Lowered from 0.75 to capture more relevant context
+                "include_source_references": True,
+                "include_document_locations": True
             },
             "custom_instructions": "Focus on mathematical accuracy and proper methodology. Reference formulas and principles from course materials.",
             "question_type_settings": {
@@ -110,8 +112,9 @@ RUBRIC_TEMPLATES = {
             "rag_settings": {
                 "enabled": True,
                 "max_context_chunks": 5,
-                "similarity_threshold": 0.65,
-                "include_source_references": True
+                "similarity_threshold": 0.4,  # Lowered from 0.65 to capture more relevant context
+                "include_source_references": True,
+                "include_document_locations": True
             },
             "custom_instructions": "Encourage critical thinking and original analysis. Emphasize the importance of supporting arguments with evidence.",
             "question_type_settings": {
@@ -153,8 +156,9 @@ RUBRIC_TEMPLATES = {
             "rag_settings": {
                 "enabled": False,
                 "max_context_chunks": 2,
-                "similarity_threshold": 0.7,
-                "include_source_references": False
+                "similarity_threshold": 0.4,  # Lowered to capture more context
+                "include_source_references": False,
+                "include_document_locations": True
             },
             "custom_instructions": "Provide constructive feedback on language use. Highlight both errors and successes. Suggest alternative phrasings when appropriate.",
             "question_type_settings": {
@@ -196,8 +200,9 @@ RUBRIC_TEMPLATES = {
             "rag_settings": {
                 "enabled": True,
                 "max_context_chunks": 3,
-                "similarity_threshold": 0.7,
-                "include_source_references": True
+                "similarity_threshold": 0.4,  # Lowered to capture more context
+                "include_source_references": True,
+                "include_document_locations": True
             },
             "custom_instructions": "Focus on practical application and professional scenarios. Relate concepts to real-world business contexts.",
             "question_type_settings": {
@@ -238,8 +243,9 @@ RUBRIC_TEMPLATES = {
             "rag_settings": {
                 "enabled": True,
                 "max_context_chunks": 4,
-                "similarity_threshold": 0.8,
-                "include_source_references": True
+                "similarity_threshold": 0.4,  # Lowered from 0.8 to capture more relevant context
+                "include_source_references": True,
+                "include_document_locations": True
             },
             "custom_instructions": "Maintain high standards. Be specific about what's missing or incorrect. Reference exact course material requirements.",
             "question_type_settings": {

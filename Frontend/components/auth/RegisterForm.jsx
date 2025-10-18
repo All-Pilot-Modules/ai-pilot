@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import { Spinner } from '@/components/ui/spinner';
 
 export default function RegisterForm() {
   const [formData, setFormData] = useState({
@@ -157,7 +158,14 @@ export default function RegisterForm() {
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Creating account...' : 'Sign Up'}
+              {isLoading ? (
+                <>
+                  <Spinner size="sm" className="mr-2" />
+                  Creating account...
+                </>
+              ) : (
+                'Sign Up'
+              )}
             </Button>
             <p className="text-sm text-center text-muted-foreground">
               Already have an account?{' '}

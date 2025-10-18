@@ -11,6 +11,7 @@ import { ArrowLeft, Save, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/auth";
 import SimpleRubricEditor from "@/components/rubric/SimpleRubricEditor";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function RubricSettings() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -24,6 +25,7 @@ export default function RubricSettings() {
   const [loadingRubric, setLoadingRubric] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
   const [templates, setTemplates] = useState([]);
+  const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
 
   useEffect(() => {
     if (moduleId) {
@@ -65,13 +67,25 @@ export default function RubricSettings() {
 
     setIsSaving(true);
     try {
-      await apiClient.put(`/api/modules/${moduleId}/rubric`, rubric);
+      // Only send the fields that the simple editor actually modifies
+      // This prevents issues with grading_criteria weight validation
+      const rubricToSave = {
+        enabled: rubric.enabled,
+        feedback_style: rubric.feedback_style,
+        custom_instructions: rubric.custom_instructions,
+        rag_settings: rubric.rag_settings,
+        // Don't send grading_criteria - it should come from templates
+        // Don't send question_type_settings - it should come from templates
+      };
+
+      await apiClient.put(`/api/modules/${moduleId}/rubric`, rubricToSave);
       setOriginalRubric(rubric);
       setHasChanges(false);
       alert('Rubric settings saved successfully!');
     } catch (error) {
       console.error('Failed to save rubric:', error);
-      alert('Failed to save rubric settings. Please try again.');
+      const errorMsg = error?.message || 'Failed to save rubric settings. Please try again.';
+      alert(errorMsg);
     } finally {
       setIsSaving(false);
     }
@@ -80,11 +94,10 @@ export default function RubricSettings() {
   const handleApplyTemplate = async (templateName) => {
     if (!moduleId) return;
 
+    setIsApplyingTemplate(true);
     try {
       const response = await apiClient.post(
-        `/api/modules/${moduleId}/rubric/apply-template`,
-        null,
-        { params: { template_name: templateName, preserve_custom_instructions: true } }
+        `/api/modules/${moduleId}/rubric/apply-template?template_name=${templateName}&preserve_custom_instructions=true`
       );
       setRubric(response.rubric);
       setOriginalRubric(response.rubric);
@@ -92,6 +105,8 @@ export default function RubricSettings() {
     } catch (error) {
       console.error('Failed to apply template:', error);
       alert('Failed to apply template. Please try again.');
+    } finally {
+      setIsApplyingTemplate(false);
     }
   };
 
@@ -103,7 +118,7 @@ export default function RubricSettings() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <Spinner size="xl" className="text-primary mx-auto mb-4" />
           <p className="text-muted-foreground">Loading rubric settings...</p>
         </div>
       </div>
@@ -173,8 +188,17 @@ export default function RubricSettings() {
                 disabled={isSaving || !hasChanges}
                 size="lg"
               >
-                <Save className="w-4 h-4 mr-2" />
-                {isSaving ? 'Saving...' : 'Save Settings'}
+                {isSaving ? (
+                  <>
+                    <Spinner size="sm" className="mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4 mr-2" />
+                    Save Settings
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -194,6 +218,7 @@ export default function RubricSettings() {
           onChange={updateRubric}
           templates={templates}
           onApplyTemplate={handleApplyTemplate}
+          isApplyingTemplate={isApplyingTemplate}
         />
       </div>
     </div>

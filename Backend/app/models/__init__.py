@@ -12,7 +12,8 @@ from app.models.student_answer import StudentAnswer
 from app.models.ai_feedback import AIFeedback  # ✅ NEW: AI feedback storage
 from app.models.test_submission import TestSubmission  # ✅ NEW: Track test submissions
 from app.models.module import Module
-# from app.models.chat_message import ChatMessage
+from app.models.chat_conversation import ChatConversation  # ✅ NEW: Chat conversations
+from app.models.chat_message import ChatMessage  # ✅ NEW: Chat messages
 # from app.models.autosave import Autosave
 # from app.models.attempt_summary import AttemptSummary
 # from app.models.audio_explanation import AudioExplanation

@@ -15,7 +15,8 @@ def get_context_for_feedback(
     student_answer: str,
     module_id: str,
     max_chunks: int = 3,
-    similarity_threshold: float = 0.7
+    similarity_threshold: float = 0.7,
+    include_document_locations: bool = True
 ) -> Dict[str, Any]:
     """
     Retrieve relevant course material context for feedback generation
@@ -46,7 +47,16 @@ def get_context_for_feedback(
         Document.is_testbank == False  # Don't use testbank docs for context
     ).all()
 
+    print(f"RAG DEBUG: Looking for documents in module {module_id}")
+    print(f"   Found {len(documents)} embedded documents")
+
     if not documents:
+        # Debug: Check what documents exist (regardless of status)
+        all_docs = db.query(Document).filter(Document.module_id == module_id).all()
+        print(f"   Total documents in module: {len(all_docs)}")
+        for doc in all_docs:
+            print(f"      - {doc.title}: status={doc.processing_status}, is_testbank={doc.is_testbank}")
+
         return {
             'has_context': False,
             'chunks': [],
@@ -73,11 +83,20 @@ def get_context_for_feedback(
             print(f"Error searching document {doc.id}: {str(e)}")
             continue
 
+    print(f"   Retrieved {len(all_results)} total chunks from {len(documents)} documents")
+
     # Filter by similarity threshold
     filtered_results = [
         r for r in all_results
         if r['similarity'] >= similarity_threshold
     ]
+
+    print(f"   After filtering (threshold={similarity_threshold}): {len(filtered_results)} chunks")
+    if all_results and not filtered_results:
+        # Show top similarity scores to help debug threshold issues
+        top_3 = sorted(all_results, key=lambda x: x['similarity'], reverse=True)[:3]
+        top_scores = [f"{r['similarity']:.3f}" for r in top_3]
+        print(f"   Top 3 similarity scores: {top_scores}")
 
     # Sort by similarity and get top N
     filtered_results.sort(key=lambda x: x['similarity'], reverse=True)
@@ -92,7 +111,7 @@ def get_context_for_feedback(
         }
 
     # Format context for prompt
-    formatted_context = format_context_for_prompt(top_results)
+    formatted_context = format_context_for_prompt(top_results, include_document_locations)
 
     # Extract unique sources
     sources = list(set([
@@ -108,12 +127,12 @@ def get_context_for_feedback(
     }
 
 
-def format_context_for_prompt(chunks: List[Dict[str, Any]]) -> str:
+def format_context_for_prompt(chunks: List[Dict[str, Any]], include_document_locations: bool = True) -> str:
     """
     Format retrieved chunks into a structured context for the AI prompt
 
     Args:
-        chunks: List of chunk dicts with 'text', 'similarity', 'document_title'
+        chunks: List of chunk dicts with 'text', 'similarity', 'document_title', 'metadata'
 
     Returns:
         Formatted string for prompt injection
@@ -126,14 +145,44 @@ def format_context_for_prompt(chunks: List[Dict[str, Any]]) -> str:
 
     for i, chunk in enumerate(chunks, 1):
         similarity_pct = int(chunk['similarity'] * 100)
-        context_parts.append(f"\n[Source {i}] From: {chunk['document_title']} (Relevance: {similarity_pct}%)")
+
+        # Build source reference with location details
+        source_ref = f"[Source {i}] From: {chunk['document_title']}"
+
+        # Add page/slide/section information if available
+        metadata = chunk.get('metadata', {})
+        location_parts = []
+
+        if 'page_number' in metadata and metadata['page_number']:
+            location_parts.append(f"Page {metadata['page_number']}")
+        elif 'slide_number' in metadata and metadata['slide_number']:
+            location_parts.append(f"Slide {metadata['slide_number']}")
+
+        if 'section' in metadata and metadata['section']:
+            location_parts.append(f"Section: {metadata['section']}")
+        elif 'heading' in metadata and metadata['heading']:
+            location_parts.append(f"'{metadata['heading']}'")
+
+        if location_parts:
+            source_ref += f" ({', '.join(location_parts)})"
+
+        source_ref += f" (Relevance: {similarity_pct}%)"
+
+        context_parts.append(f"\n{source_ref}")
         context_parts.append(f"{chunk['text']}\n")
 
     context_parts.append("\n=== END OF COURSE MATERIAL ===\n")
-    context_parts.append("\nWhen providing feedback:")
-    context_parts.append("- Reference specific concepts from the course material above")
-    context_parts.append("- If the student's answer aligns with or contradicts the material, mention it")
-    context_parts.append("- Cite sources when appropriate (e.g., 'As mentioned in [Source 1]...')\n")
+
+    if include_document_locations:
+        context_parts.append("\n⚠️ IMPORTANT - Document References in Feedback:")
+        context_parts.append("- When providing improvement hints, ALWAYS reference the specific document location")
+        context_parts.append("- Use format: 'Review [Document Name], Page X' or 'See Slide Y in [Document]'")
+        context_parts.append("- Example: 'To better understand this concept, review Lab 6, Page 3, section on Earth's Processor'")
+        context_parts.append("- Example: 'The material on Slide 5 of Lecture 2 explains this topic in detail'")
+        context_parts.append("- Make references natural and helpful, directing students to exact locations")
+        context_parts.append("- If multiple sources are relevant, mention the most relevant one in your improvement hint\n")
+    else:
+        context_parts.append("\nProvide feedback based on the course material above, but do NOT include specific page or slide numbers.\n")
 
     return "\n".join(context_parts)
 

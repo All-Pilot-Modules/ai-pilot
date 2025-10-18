@@ -258,7 +258,8 @@ def search_similar_chunks(
                 'document_id': result['document_id'],
                 'similarity': result['similarity'],
                 'text': chunk.chunk_text,
-                'chunk_index': chunk.chunk_index
+                'chunk_index': chunk.chunk_index,
+                'metadata': chunk.chunk_metadata or {}  # Include metadata (page, slide, section info)
             })
 
     return top_results

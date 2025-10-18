@@ -79,13 +79,7 @@ def build_mcq_feedback_prompt(
             prompt_parts.append(f"- {criterion_name.title()} ({weight}%): {description}")
         prompt_parts.append("")
 
-    # 5. Custom teacher instructions
-    if custom_instructions:
-        prompt_parts.append("Teacher Instructions:")
-        prompt_parts.append(custom_instructions)
-        prompt_parts.append("")
-
-    # 6. MCQ-specific guidance
+    # 5. MCQ-specific guidance
     explain_correct = mcq_settings.get("explain_correct", True)
     explain_incorrect = mcq_settings.get("explain_incorrect", True)
     show_all_options = mcq_settings.get("show_all_options_analysis", False)
@@ -99,19 +93,25 @@ def build_mcq_feedback_prompt(
 
     prompt_parts.append("")
 
-    # 7. Output format
+    # 6. Output format
+    rag_settings = rubric.get("rag_settings", {})
+    include_doc_locations = rag_settings.get("include_document_locations", True)
+
     prompt_parts.append("Please provide feedback in this exact JSON format:")
     prompt_parts.append("{")
     prompt_parts.append(f'  "is_correct": {str(is_correct).lower()},')
     prompt_parts.append(f'  "correctness_score": {100 if is_correct else "score_0_to_100"},')
     prompt_parts.append('  "explanation": "Clear explanation of why the answer is correct/incorrect",')
-    prompt_parts.append('  "improvement_hint": "Specific guidance for understanding the concept better",')
+    if rag_context and rag_context.get("has_context") and include_doc_locations:
+        prompt_parts.append('  "improvement_hint": "Specific guidance with EXACT document reference (e.g., \'Review Lab 6, Page 3 on Earth\'s Processor\' or \'See Slide 5 in Lecture 2\')",')
+    else:
+        prompt_parts.append('  "improvement_hint": "Specific guidance for understanding the concept better",')
     prompt_parts.append('  "concept_explanation": "Brief explanation of the key concept being tested",')
     prompt_parts.append('  "confidence_level": "high/medium/low based on clarity of the question and answer"')
     prompt_parts.append("}")
     prompt_parts.append("")
 
-    # 8. Additional guidance
+    # 7. Base tone guidance (can be overridden by custom instructions)
     tone_guidance = {
         "encouraging": "Keep explanations supportive and motivating. Focus on learning and growth.",
         "neutral": "Keep explanations objective and factual. Focus on accuracy and understanding.",
@@ -121,6 +121,31 @@ def build_mcq_feedback_prompt(
 
     if include_examples:
         prompt_parts.append("Include specific examples when helpful.")
+
+    prompt_parts.append("")
+
+    # 8. CUSTOM TEACHER INSTRUCTIONS (HIGHEST PRIORITY - OVERRIDES ALL OTHER TONE/STYLE SETTINGS)
+    if custom_instructions:
+        prompt_parts.append("=" * 80)
+        prompt_parts.append("⚠️ CRITICAL: TEACHER'S CUSTOM INSTRUCTIONS - FOLLOW THESE EXACTLY")
+        prompt_parts.append("=" * 80)
+        prompt_parts.append(custom_instructions)
+        prompt_parts.append("")
+
+        # Detect harsh/strict language and reinforce it
+        instruction_lower = custom_instructions.lower()
+        harsh_keywords = ["harsh", "scold", "strict", "tough", "rigorous", "demanding", "critical"]
+        if any(keyword in instruction_lower for keyword in harsh_keywords):
+            prompt_parts.append("⚠️ IMPORTANT: The teacher explicitly wants a strict/harsh approach.")
+            prompt_parts.append("- DO NOT soften your language or be overly encouraging")
+            prompt_parts.append("- Point out mistakes directly and clearly")
+            prompt_parts.append("- Express disappointment or concern when appropriate")
+            prompt_parts.append("- Be demanding and set high expectations")
+            prompt_parts.append("- The goal is to push the student to do better through tough feedback")
+
+        prompt_parts.append("")
+        prompt_parts.append("REMINDER: Teacher's instructions above take ABSOLUTE PRIORITY over any previous tone settings.")
+        prompt_parts.append("=" * 80)
 
     return "\n".join(prompt_parts)
 
@@ -196,13 +221,7 @@ def build_text_feedback_prompt(
             prompt_parts.append(f"- {criterion_name.title()} ({weight}%): {description}")
         prompt_parts.append("")
 
-    # 5. Custom teacher instructions
-    if custom_instructions:
-        prompt_parts.append("Teacher Instructions:")
-        prompt_parts.append(custom_instructions)
-        prompt_parts.append("")
-
-    # 6. Question-type specific requirements
+    # 5. Question-type specific requirements
     min_length = type_settings.get("minimum_length", 0)
     check_grammar = type_settings.get("check_grammar", False)
     require_structure = type_settings.get("require_structure", False)
@@ -228,6 +247,9 @@ def build_text_feedback_prompt(
         prompt_parts.append("")
 
     # 7. Output format
+    rag_settings = rubric.get("rag_settings", {})
+    include_doc_locations = rag_settings.get("include_document_locations", True)
+
     prompt_parts.append("Please provide detailed feedback in this exact JSON format:")
     prompt_parts.append("{")
     prompt_parts.append('  "is_correct": "true/false (true if substantially correct)",')
@@ -235,14 +257,17 @@ def build_text_feedback_prompt(
     prompt_parts.append('  "explanation": "Detailed analysis of the student\'s response",')
     prompt_parts.append('  "strengths": ["What the student got right - array of strings"],')
     prompt_parts.append('  "weaknesses": ["Areas for improvement - array of strings"],')
-    prompt_parts.append('  "improvement_hint": "Specific guidance for better understanding",')
+    if rag_context and rag_context.get("has_context") and include_doc_locations:
+        prompt_parts.append('  "improvement_hint": "Specific guidance with EXACT document references where to study (e.g., \'To understand this better, carefully review Lab 6, Page 3, the section on Earth\'s Processor\' or \'Study Slide 12-15 in Lecture 3 on Memory Management\')",')
+    else:
+        prompt_parts.append('  "improvement_hint": "Specific guidance for better understanding",')
     prompt_parts.append('  "concept_explanation": "Brief explanation of key concepts",')
     prompt_parts.append('  "missing_concepts": ["Important concepts not addressed - array of strings"],')
     prompt_parts.append('  "confidence_level": "high/medium/low based on answer quality"')
     prompt_parts.append("}")
     prompt_parts.append("")
 
-    # 8. Additional guidance based on tone
+    # 8. Base tone guidance (can be overridden by custom instructions)
     tone_guidance = {
         "encouraging": "Be constructive and supportive. Highlight both strengths and areas for growth. Focus on helping the student improve.",
         "neutral": "Be objective and analytical. Provide balanced feedback focusing on accuracy and understanding.",
@@ -252,6 +277,31 @@ def build_text_feedback_prompt(
 
     if include_examples:
         prompt_parts.append("Provide specific examples to illustrate your points.")
+
+    prompt_parts.append("")
+
+    # 9. CUSTOM TEACHER INSTRUCTIONS (HIGHEST PRIORITY - OVERRIDES ALL OTHER TONE/STYLE SETTINGS)
+    if custom_instructions:
+        prompt_parts.append("=" * 80)
+        prompt_parts.append("⚠️ CRITICAL: TEACHER'S CUSTOM INSTRUCTIONS - FOLLOW THESE EXACTLY")
+        prompt_parts.append("=" * 80)
+        prompt_parts.append(custom_instructions)
+        prompt_parts.append("")
+
+        # Detect harsh/strict language and reinforce it
+        instruction_lower = custom_instructions.lower()
+        harsh_keywords = ["harsh", "scold", "strict", "tough", "rigorous", "demanding", "critical"]
+        if any(keyword in instruction_lower for keyword in harsh_keywords):
+            prompt_parts.append("⚠️ IMPORTANT: The teacher explicitly wants a strict/harsh approach.")
+            prompt_parts.append("- DO NOT soften your language or be overly encouraging")
+            prompt_parts.append("- Point out mistakes directly and clearly")
+            prompt_parts.append("- Express disappointment or concern when appropriate")
+            prompt_parts.append("- Be demanding and set high expectations")
+            prompt_parts.append("- The goal is to push the student to do better through tough feedback")
+
+        prompt_parts.append("")
+        prompt_parts.append("REMINDER: Teacher's instructions above take ABSOLUTE PRIORITY over any previous tone settings.")
+        prompt_parts.append("=" * 80)
 
     return "\n".join(prompt_parts)
 
@@ -313,11 +363,13 @@ def should_include_context(rubric: Dict[str, Any], question_type: str) -> bool:
     if not rag_settings.get("enabled", True):
         return False
 
-    # RAG is most useful for text-based questions
-    # For MCQ, use only if we want detailed concept explanations
+    # RAG should be enabled for ALL question types when course materials are available
+    # For MCQ: Feedback will reference specific document sections (e.g., "Review Lab 6, page 3")
+    # Note: 'show_all_options_analysis' controls feedback STYLE, not whether to use RAG
     if question_type == "mcq":
-        mcq_settings = rubric.get("question_type_settings", {}).get("mcq", {})
-        return mcq_settings.get("show_all_options_analysis", False)
+        # Always enable RAG for MCQ to provide document-referenced feedback
+        # This ensures students get feedback citing uploaded course materials
+        return True
 
     # Always use RAG for short answer and essay questions
     return True

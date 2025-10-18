@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, FileText, Clock, Users, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { LoadingCard } from "@/components/ui/loading-overlay";
 
 export default function TestsPage() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -19,7 +20,11 @@ export default function TestsPage() {
   const [tests, setTests] = useState([]); // Will be fetched from API
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingCard message="Loading tests..." />
+      </div>
+    );
   }
 
   if (!isAuthenticated) {

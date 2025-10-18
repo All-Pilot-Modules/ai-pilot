@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import { Spinner } from '@/components/ui/spinner';
 
 export default function LoginForm() {
   const [identifier, setIdentifier] = useState('');
@@ -79,7 +80,14 @@ export default function LoginForm() {
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Signing in...' : 'Sign In'}
+              {isLoading ? (
+                <>
+                  <Spinner size="sm" className="mr-2" />
+                  Signing in...
+                </>
+              ) : (
+                'Sign In'
+              )}
             </Button>
             <p className="text-sm text-center text-muted-foreground">
               Don't have an account?{' '}

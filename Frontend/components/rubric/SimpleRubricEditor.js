@@ -5,9 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { Lightbulb, Sparkles } from "lucide-react";
 
-export default function SimpleRubricEditor({ value, onChange, templates, onApplyTemplate }) {
+export default function SimpleRubricEditor({ value, onChange, templates, onApplyTemplate, isApplyingTemplate = false }) {
   const tones = [
     { value: 'encouraging', emoji: '😊', label: 'Friendly', description: 'Supportive and positive' },
     { value: 'neutral', emoji: '📊', label: 'Balanced', description: 'Professional and fair' },
@@ -55,29 +56,36 @@ export default function SimpleRubricEditor({ value, onChange, templates, onApply
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {templates.map((template) => (
-                <Button
-                  key={template.key}
-                  variant="outline"
-                  onClick={() => handleTemplateSelect(template.key)}
-                  className="h-auto p-4 flex flex-col items-start text-left hover:border-primary hover:bg-primary/5"
-                >
-                  <span className="text-2xl mb-2">
-                    {template.key === 'default' && '📚'}
-                    {template.key === 'stem_course' && '🔬'}
-                    {template.key === 'humanities' && '📖'}
-                    {template.key === 'language_learning' && '🌍'}
-                    {template.key === 'professional_skills' && '💼'}
-                    {template.key === 'strict_grading' && '🎯'}
-                  </span>
-                  <span className="font-medium text-sm">{template.name}</span>
-                  <span className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                    {template.description}
-                  </span>
-                </Button>
-              ))}
-            </div>
+            {isApplyingTemplate ? (
+              <div className="flex items-center justify-center py-8">
+                <Spinner size="lg" className="text-primary mr-3" />
+                <p className="text-muted-foreground">Applying template...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {templates.map((template) => (
+                  <Button
+                    key={template.key}
+                    variant="outline"
+                    onClick={() => handleTemplateSelect(template.key)}
+                    className="h-auto p-4 flex flex-col items-start text-left hover:border-primary hover:bg-primary/5"
+                  >
+                    <span className="text-2xl mb-2">
+                      {template.key === 'default' && '📚'}
+                      {template.key === 'stem_course' && '🔬'}
+                      {template.key === 'humanities' && '📖'}
+                      {template.key === 'language_learning' && '🌍'}
+                      {template.key === 'professional_skills' && '💼'}
+                      {template.key === 'strict_grading' && '🎯'}
+                    </span>
+                    <span className="font-medium text-sm">{template.name}</span>
+                    <span className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                      {template.description}
+                    </span>
+                  </Button>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

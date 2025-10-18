@@ -212,9 +212,10 @@ export default function StudentTestPage() {
           setSaveStatus('saved');
           setTimeout(() => setSaveStatus(null), 1000);
         } catch (error) {
-          console.error('MCQ Auto-save failed:', error.message || error);
+          const errorMessage = error.response?.data?.detail || error.message || 'Failed to save answer';
+          console.error('MCQ Auto-save failed:', errorMessage);
           setSaveStatus('error');
-          setError(error.message || 'Failed to save answer. Please try again.');
+          setError(errorMessage);
           setTimeout(() => {
             setSaveStatus(null);
             setError("");
@@ -243,9 +244,10 @@ export default function StudentTestPage() {
           setSaveStatus('saved');
           setTimeout(() => setSaveStatus(null), 1000);
         } catch (error) {
-          console.error('Text Auto-save failed:', error.message || error);
+          const errorMessage = error.response?.data?.detail || error.message || 'Failed to save answer';
+          console.error('Text Auto-save failed:', errorMessage);
           setSaveStatus('error');
-          setError(error.message || 'Failed to save answer. Please try again.');
+          setError(errorMessage);
           setTimeout(() => {
             setSaveStatus(null);
             setError("");
@@ -292,8 +294,9 @@ export default function StudentTestPage() {
       setSuccess("Progress saved!");
       setTimeout(() => setSuccess(""), 2000);
     } catch (error) {
-      console.error('Save progress error:', error.message || error);
-      setError(error.message || "Failed to save progress. Please try again.");
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed to save progress';
+      console.error('Save progress error:', errorMessage);
+      setError(errorMessage);
     }
   };
 

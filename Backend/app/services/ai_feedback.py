@@ -77,8 +77,15 @@ class AIFeedbackService:
 
             # Get RAG context if enabled in rubric
             rag_context = None
-            if should_include_context(rubric, question.type):
+            should_use_rag = should_include_context(rubric, question.type)
+            logger.info(f"🔍 RAG CHECK: should_include_context={should_use_rag}, question_type={question.type}")
+            logger.info(f"🔍 RAG SETTINGS: {rubric.get('rag_settings', {})}")
+
+            if should_use_rag:
                 rag_settings = rubric.get("rag_settings", {})
+                logger.info(f"🔍 ATTEMPTING RAG RETRIEVAL for module_id={module_id}")
+                logger.info(f"   max_chunks={rag_settings.get('max_context_chunks', 3)}")
+                logger.info(f"   similarity_threshold={rag_settings.get('similarity_threshold', 0.7)}")
                 try:
                     rag_context = get_context_for_feedback(
                         db=db,
@@ -86,12 +93,21 @@ class AIFeedbackService:
                         student_answer=student_answer_text,
                         module_id=module_id,
                         max_chunks=rag_settings.get("max_context_chunks", 3),
-                        similarity_threshold=rag_settings.get("similarity_threshold", 0.7)
+                        similarity_threshold=rag_settings.get("similarity_threshold", 0.7),
+                        include_document_locations=rag_settings.get("include_document_locations", True)
                     )
-                    logger.info(f"RAG context retrieved: {rag_context.get('has_context', False)}")
+                    logger.info(f"✅ RAG context retrieved: has_context={rag_context.get('has_context', False)}")
+                    if rag_context and rag_context.get('has_context'):
+                        logger.info(f"   📚 Sources: {rag_context.get('sources', [])}")
+                        logger.info(f"   📄 Chunks: {len(rag_context.get('chunks', []))}")
+                    else:
+                        logger.warning(f"⚠️  RAG returned no context")
                 except Exception as rag_error:
-                    logger.warning(f"RAG retrieval failed, continuing without context: {str(rag_error)}")
+                    logger.error(f"❌ RAG retrieval failed: {str(rag_error)}")
+                    logger.exception("Full RAG error traceback:")
                     rag_context = None
+            else:
+                logger.info(f"⏭️  Skipping RAG (should_include_context=False)")
 
             # Generate feedback based on question type
             if question.type == 'mcq':

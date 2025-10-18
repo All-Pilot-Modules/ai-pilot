@@ -1,0 +1,23 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/ai-pilot-backend:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/ai-pilot-backend:latest'
+      - '-f'
+      - 'Backend/Dockerfile'
+      - 'Backend'
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/ai-pilot-backend:$COMMIT_SHA'
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/ai-pilot-backend:latest'
+
+images:
+  - 'gcr.io/$PROJECT_ID/ai-pilot-backend:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/ai-pilot-backend:latest'
