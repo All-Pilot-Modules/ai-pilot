@@ -141,7 +141,7 @@ export default function HelpPage() {
                     <div>
                       <h4 className="font-semibold mb-2">How do I export data?</h4>
                       <p className="text-sm text-muted-foreground">
-                        Use the "Export Report" button in the Analytics section to download performance data in various formats.
+                        Use the &quot;Export Report&quot; button in the Analytics section to download performance data in various formats.
                       </p>
                     </div>
                   </CardContent>
@@ -157,7 +157,7 @@ export default function HelpPage() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-muted-foreground mb-4">
-                      Can't find what you're looking for? Our support team is here to help.
+                      Can&apos;t find what you&apos;re looking for? Our support team is here to help.
                     </p>
                     <div className="flex gap-2">
                       <Button>Contact Support</Button>

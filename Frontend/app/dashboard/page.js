@@ -80,6 +80,7 @@ export default function Dashboard() {
     if (isAuthenticated && user && moduleName) {
       loadModuleData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user, moduleName]);
 
   const loadModuleData = async () => {

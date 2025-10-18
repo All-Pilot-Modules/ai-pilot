@@ -72,6 +72,7 @@ export default function QuestionsPage() {
     if (isAuthenticated && user && moduleName) {
       fetchModuleAndQuestions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user, moduleName]);
 
   const fetchModuleAndQuestions = async () => {
@@ -80,15 +81,15 @@ export default function QuestionsPage() {
       console.log('Fetching modules for teacher:', user.id);
       const moduleData = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
       console.log('Module data received:', moduleData);
-      const module = moduleData.find(m => m.name === moduleName);
-      console.log('Found module:', module, 'for name:', moduleName);
-      
-      if (module) {
-        console.log('Setting current module:', module);
-        setCurrentModule(module);
+      const foundModule = moduleData.find(m => m.name === moduleName);
+      console.log('Found module:', foundModule, 'for name:', moduleName);
+
+      if (foundModule) {
+        console.log('Setting current module:', foundModule);
+        setCurrentModule(foundModule);
         
         // Get documents for this module to use as question container
-        const documentsData = await apiClient.get(`/api/documents?teacher_id=${user.id}&module_id=${module.id}`);
+        const documentsData = await apiClient.get(`/api/documents?teacher_id=${user.id}&module_id=${foundModule.id}`);
         
         // Use the first document as container, or create a placeholder if none exist
         if (documentsData && documentsData.length > 0) {
@@ -97,15 +98,15 @@ export default function QuestionsPage() {
           // Create a virtual document object for modules without documents
           console.log('No documents found, creating virtual document');
           setModuleDocument({
-            id: `virtual-${module.id}`,
-            title: `${module.name} - Questions`,
-            module_id: module.id
+            id: `virtual-${foundModule.id}`,
+            title: `${foundModule.name} - Questions`,
+            module_id: foundModule.id
           });
         }
-        
+
         // Fetch questions for this module
-        console.log('Fetching questions for module:', module.id);
-        const questionsData = await apiClient.get(`/api/questions/by-module?module_id=${module.id}`);
+        console.log('Fetching questions for module:', foundModule.id);
+        const questionsData = await apiClient.get(`/api/questions/by-module?module_id=${foundModule.id}`);
         console.log('Questions data received:', questionsData);
         setQuestions(questionsData || []);
       } else {

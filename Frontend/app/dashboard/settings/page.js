@@ -57,6 +57,7 @@ export default function SettingsPage() {
     if (isAuthenticated && user && moduleName) {
       fetchModuleData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user, moduleName]);
 
   const fetchModuleData = async () => {
