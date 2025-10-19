@@ -52,6 +52,7 @@ export default function StudentDetailPage() {
       // Get module by name
       const modulesResponse = await apiClient.get(`/api/modules?teacher_id=${teacherId}`);
       const modules = modulesResponse.data || modulesResponse;
+      // eslint-disable-next-line @next/next/no-assign-module-variable
       const module = modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
 
       if (!module) {

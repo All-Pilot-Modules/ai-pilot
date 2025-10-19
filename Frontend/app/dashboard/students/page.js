@@ -99,6 +99,7 @@ export default function StudentsPage() {
       // First, get the module ID from module name
       const modulesResponse = await apiClient.get(`/api/modules?teacher_id=${teacherId}`);
       const modules = modulesResponse.data || modulesResponse;
+      // eslint-disable-next-line @next/next/no-assign-module-variable
       const module = modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
       
       if (!module) {
@@ -530,7 +531,7 @@ export default function StudentsPage() {
                   <div className="text-6xl mb-4">👥</div>
                   <h3 className="text-lg font-semibold mb-2">No students enrolled</h3>
                   <p className="text-muted-foreground mb-4">
-                    This module doesn't have any students yet. Students will appear here automatically when they start taking tests.
+                    This module does not have any students yet. Students will appear here automatically when they start taking tests.
                   </p>
                 </CardContent>
               </Card>
@@ -540,7 +541,7 @@ export default function StudentsPage() {
                   <div className="text-6xl mb-4">🔍</div>
                   <h3 className="text-lg font-semibold mb-2">No students found</h3>
                   <p className="text-muted-foreground mb-4">
-                    No students match your search term "{searchTerm}". Try adjusting your search.
+                    No students match your search term &quot;{searchTerm}&quot;. Try adjusting your search.
                   </p>
                   <Button variant="outline" onClick={() => setSearchTerm('')}>
                     Clear Search
