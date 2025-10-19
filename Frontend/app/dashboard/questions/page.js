@@ -439,7 +439,7 @@ export default function QuestionsPage() {
                       </div>
 
                       <div>
-                        <Label htmlFor="bloom_taxonomy">Bloom's Taxonomy</Label>
+                        <Label htmlFor="bloom_taxonomy">Bloom&apos;s Taxonomy</Label>
                         <Select value={questionForm.bloom_taxonomy} onValueChange={(value) => setQuestionForm({...questionForm, bloom_taxonomy: value})}>
                           <SelectTrigger className="mt-1">
                             <SelectValue placeholder="Select level" />
@@ -598,7 +598,7 @@ export default function QuestionsPage() {
                   <div className="text-xs text-muted-foreground/70 mb-4 p-2 bg-muted/30 rounded">
                     Debug: Total questions: {questions.length}, Filtered: {filteredQuestions.length}<br/>
                     Module: {currentModule?.name} (ID: {currentModule?.id})<br/>
-                    Search: "{searchTerm}", Filter: {filterType}
+                    Search: &quot;{searchTerm}&quot;, Filter: {filterType}
                   </div>
                 </CardContent>
               </Card>
@@ -724,7 +724,7 @@ export default function QuestionsPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="edit-bloom_taxonomy">Bloom's Taxonomy</Label>
+                    <Label htmlFor="edit-bloom_taxonomy">Blooms Taxonomy</Label>
                     <Select value={questionForm.bloom_taxonomy} onValueChange={(value) => setQuestionForm({...questionForm, bloom_taxonomy: value})}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select level" />

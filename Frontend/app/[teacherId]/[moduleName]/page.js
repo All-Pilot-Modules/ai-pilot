@@ -230,7 +230,7 @@ export default function ModuleAccessPage() {
           {/* Help Text */}
           <div className="text-center mt-6">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Don't have a student ID or access code? Contact your instructor for access to this module.
+              Do not have a student ID or access code? Contact your instructor for access to this module.
             </p>
           </div>
         </div>

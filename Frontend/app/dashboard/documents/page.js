@@ -81,11 +81,13 @@ export default function DocumentsPage() {
     }
   }, [isAuthenticated, user, moduleName]);
 
+  
   const fetchModuleAndDocuments = async () => {
     try {
       setIsLoadingDocuments(true);
       // First get the module info to get module_id
       const moduleData = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
+      // eslint-disable-next-line @next/next/no-assign-module-variable
       const module = moduleData.find(m => m.name === moduleName);
 
       if (module) {
@@ -114,7 +116,7 @@ export default function DocumentsPage() {
       case 'jpg':
       case 'jpeg':
       case 'png':
-        return <Image className="w-5 h-5 text-green-500" />;
+        return <Image className="w-5 h-5 text-green-500" alt="image"/>;
       case 'zip':
       case 'rar':
         return <Archive className="w-5 h-5 text-purple-500" />;

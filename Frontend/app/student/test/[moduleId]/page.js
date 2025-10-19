@@ -374,7 +374,7 @@ export default function StudentTestPage() {
           <CardContent className="p-6 text-center">
             <AlertCircle className="w-12 h-12 text-orange-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Test Available</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">This module doesn't have any questions yet.</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">This module doesn&quot;t have any questions yet.</p>
             <Button onClick={() => router.push(`/student/module/${moduleId}`)}>
               Back to Module
             </Button>

@@ -104,7 +104,7 @@ export default function RAGSettingsPanel({ value, onChange }) {
               <div className="space-y-0.5">
                 <Label htmlFor="include_locations">Include Page/Slide References</Label>
                 <p className="text-xs text-muted-foreground">
-                  Direct students to specific pages or slides (e.g., "Review Lab 6, Page 3")
+                  Direct students to specific pages or slides (e.g., &quot;Review Lab 6, Page 3&quot;)
                 </p>
               </div>
               <Switch

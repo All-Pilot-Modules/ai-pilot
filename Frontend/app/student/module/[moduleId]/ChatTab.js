@@ -204,7 +204,7 @@ export default function ChatTab({ moduleId, moduleAccess }) {
                 Welcome to AI Tutor!
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                I'm here to help you understand the course materials. Ask me anything about the topics covered in this module!
+                I am here to help you understand the course materials. Ask me anything about the topics covered in this module!
               </p>
             </div>
           </div>

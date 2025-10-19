@@ -606,7 +606,7 @@ export default function StudentModulePage() {
                     No Test Available
                   </h3>
                   <p className="text-gray-600 dark:text-gray-400">
-                    Your instructor hasn't posted the test yet. Check back later!
+                    Your instructor has not posted the test yet. Check back later!
                   </p>
                 </CardContent>
               </Card>
@@ -856,7 +856,7 @@ export default function StudentModulePage() {
                                   No answer provided for this question
                                 </p>
                                 <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                                  You didn't submit an answer for this question in your attempt.
+                                  You did not submit an answer for this question in your attempt.
                                 </p>
                               </div>
                             ) : feedback ? (
@@ -1034,7 +1034,7 @@ export default function StudentModulePage() {
                     No Materials Available
                   </h3>
                   <p className="text-gray-600 dark:text-gray-400">
-                    Your instructor hasn't uploaded any course materials yet.
+                    Your instructor has not uploaded any course materials yet.
                   </p>
                 </CardContent>
               </Card>
