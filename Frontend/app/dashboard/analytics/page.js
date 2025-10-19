@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from "react"; // 👈 Add this
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,8 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { BarChart3, TrendingUp, Users, FileText, Clock, Download } from "lucide-react";
 import Link from "next/link";
 
-export default function AnalyticsPage() {
+// ✅ Move logic using useSearchParams() to a separate inner component
+function AnalyticsContent() {
   const { user, loading, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const moduleName = searchParams.get('module');
@@ -208,5 +210,14 @@ export default function AnalyticsPage() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+// ✅ Wrap your content with Suspense to fix build error
+export default function AnalyticsPage() {
+  return (
+    <Suspense fallback={<div className="p-8">Loading...</div>}>
+      <AnalyticsContent />
+    </Suspense>
   );
 }
