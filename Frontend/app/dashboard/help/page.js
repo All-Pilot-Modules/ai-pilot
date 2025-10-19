@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -10,10 +11,10 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { HelpCircle, Book, MessageCircle, FileText, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
-export default function HelpPage() {
+function HelpContent() {
   const { user, loading, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
-  const moduleName = searchParams.get('module');
+  const moduleName = searchParams.get("module");
 
   if (loading) {
     return <div className="p-8">Loading...</div>;
@@ -45,7 +46,7 @@ export default function HelpPage() {
     <SidebarProvider
       style={{
         "--sidebar-width": "calc(var(--spacing) * 72)",
-        "--header-height": "calc(var(--spacing) * 12)"
+        "--header-height": "calc(var(--spacing) * 12)",
       }}
     >
       <AppSidebar variant="inset" />
@@ -171,5 +172,13 @@ export default function HelpPage() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+export default function HelpPage() {
+  return (
+    <Suspense fallback={<div className="p-8">Loading...</div>}>
+      <HelpContent />
+    </Suspense>
   );
 }
