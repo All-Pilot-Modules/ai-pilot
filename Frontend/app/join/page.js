@@ -40,6 +40,7 @@ export default function JoinModule() {
     try {
       // First, search for module by access code
       const modules = await apiClient.get('/api/modules/all');
+      // eslint-disable-next-line @next/next/no-assign-module-variable
       const module = modules.find(m => m.access_code === formData.accessCode.trim());
       
       if (!module) {
@@ -173,7 +174,7 @@ export default function JoinModule() {
 
         <div className="text-center mt-6 space-y-2">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Don't have an access code? Contact your instructor.
+            Do not have an access code? Contact your instructor.
           </p>
           <Button variant="outline" asChild>
             <Link href="/">← Back to Home</Link>
