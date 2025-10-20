@@ -9,10 +9,10 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ArrowLeft, User, Mail, Calendar, Clock, Award, BookOpen, TrendingUp, CheckCircle, XCircle, HelpCircle, List, Download, BarChart3, PieChart, Bot, FileDown, FileText, FileJson } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { apiClient } from "@/lib/auth";
 
-export default function StudentDetailPage() {
+function StudentDetailPageContent() {
   const { user, loading, isAuthenticated } = useAuth();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -927,5 +927,20 @@ export default function StudentDetailPage() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+export default function StudentDetailPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    }>
+      <StudentDetailPageContent />
+    </Suspense>
   );
 }

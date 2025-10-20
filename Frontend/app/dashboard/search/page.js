@@ -11,9 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Search, FileText, Users, BarChart3, Filter } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 
-export default function SearchPage() {
+function SearchPageContent() {
   const { user, loading, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const moduleName = searchParams.get('module');
@@ -203,5 +203,20 @@ export default function SearchPage() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    }>
+      <SearchPageContent />
+    </Suspense>
   );
 }

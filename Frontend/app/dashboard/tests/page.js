@@ -10,10 +10,10 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Plus, FileText, Clock, Users, BarChart3 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { LoadingCard } from "@/components/ui/loading-overlay";
 
-export default function TestsPage() {
+function TestsPageContent() {
   const { user, loading, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const moduleName = searchParams.get('module');
@@ -185,5 +185,20 @@ export default function TestsPage() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+export default function TestsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    }>
+      <TestsPageContent />
+    </Suspense>
   );
 }
