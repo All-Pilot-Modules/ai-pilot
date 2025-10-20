@@ -9,12 +9,12 @@ import { Label } from "@/components/ui/label";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { 
-  Users, 
-  FileText, 
-  BarChart3, 
-  Settings, 
-  TrendingUp, 
+import {
+  Users,
+  FileText,
+  BarChart3,
+  Settings,
+  TrendingUp,
   Clock,
   BookOpen,
   Target,
@@ -40,12 +40,12 @@ import {
   XCircle
 } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { apiClient } from "@/lib/auth";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
-export default function Dashboard() {
+function DashboardContent() {
   const { user, loading, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -75,15 +75,18 @@ export default function Dashboard() {
   const [moduleId, setModuleId] = useState(null);
   const [rubricSummary, setRubricSummary] = useState(null);
 
-  // Load real module data from database
-  useEffect(() => {
-    if (isAuthenticated && user && moduleName) {
-      loadModuleData();
+  const loadRubricSummary = useCallback(async (id) => {
+    try {
+      const data = await apiClient.get(`/api/modules/${id}/rubric`);
+      setRubricSummary(data);
+    } catch (error) {
+      console.error('Failed to load rubric:', error);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user, moduleName]);
+  }, []);
 
-  const loadModuleData = async () => {
+  const loadModuleData = useCallback(async () => {
+    if (!user) return;
+
     try {
       const modules = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
       const currentModule = modules.find(m => m.name === moduleName);
@@ -101,16 +104,14 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Failed to load module data:', error);
     }
-  };
+  }, [user, moduleName, loadRubricSummary]);
 
-  const loadRubricSummary = async (id) => {
-    try {
-      const data = await apiClient.get(`/api/modules/${id}/rubric`);
-      setRubricSummary(data);
-    } catch (error) {
-      console.error('Failed to load rubric:', error);
+  // Load real module data from database
+  useEffect(() => {
+    if (isAuthenticated && user && moduleName) {
+      loadModuleData();
     }
-  };
+  }, [isAuthenticated, user, moduleName, loadModuleData]);
 
   const copyToClipboard = async (text, type) => {
     try {
@@ -545,5 +546,20 @@ export default function Dashboard() {
         </div>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+export default function Dashboard() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }
