@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Copy, RotateCcw, ExternalLink, Check, Trash2, Settings } from "lucide-react";
+import { Copy, RotateCcw, ExternalLink, Check, Trash2, Settings, FileText } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/auth";
@@ -383,7 +383,7 @@ export default function MyModules() {
                               🚀 Manage
                             </Link>
                           </Button>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-3 gap-2">
                             <Button
                               asChild
                               variant="outline"
@@ -393,6 +393,17 @@ export default function MyModules() {
                               <Link href={`/dashboard/rubric?moduleId=${module.id}&moduleName=${encodeURIComponent(module.name)}`}>
                                 <Settings className="w-3 h-3 mr-1" />
                                 Rubric
+                              </Link>
+                            </Button>
+                            <Button
+                              asChild
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                            >
+                              <Link href={`/module/${module.id}/consent`}>
+                                <FileText className="w-3 h-3 mr-1" />
+                                Consent
                               </Link>
                             </Button>
                             <Button

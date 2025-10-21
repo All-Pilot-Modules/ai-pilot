@@ -11,6 +11,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)  # password hash
     profile_image = Column(String, nullable=True)
     role = Column(String, nullable=False)  # student, teacher, admin
+
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
     updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
     is_active = Column(Boolean, default=True)

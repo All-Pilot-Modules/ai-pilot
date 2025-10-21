@@ -6,15 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  BookOpen, 
-  Users, 
-  Lock, 
+import {
+  BookOpen,
+  Users,
+  Lock,
   ArrowRight,
   AlertCircle,
   GraduationCap
 } from "lucide-react";
 import { apiClient } from "@/lib/auth";
+import ModuleConsentModal from "@/components/ModuleConsentModal";
 
 export default function ModuleAccessPage() {
   const params = useParams();
@@ -28,7 +29,24 @@ export default function ModuleAccessPage() {
   const [error, setError] = useState("");
   const [moduleInfo, setModuleInfo] = useState(null);
 
+  // Consent modal state
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [enrolledModule, setEnrolledModule] = useState(null);
+
   // No initial module loading needed - we'll get module info after access code verification
+
+  const handleConsentSubmitted = (consentStatus) => {
+    // Mark consent as submitted in sessionStorage
+    if (enrolledModule) {
+      const accessData = JSON.parse(sessionStorage.getItem('student_module_access') || '{}');
+      accessData.consentSubmitted = true;
+      accessData.consentStatus = consentStatus;
+      sessionStorage.setItem('student_module_access', JSON.stringify(accessData));
+
+      // Redirect to module
+      router.push(`/student/module/${enrolledModule.id}`);
+    }
+  };
 
   const handleJoin = async (e) => {
     e.preventDefault();
@@ -38,8 +56,8 @@ export default function ModuleAccessPage() {
     setError("");
 
     try {
-      // Use existing backend endpoint to join module with access code
-      const response = await apiClient.post(`/api/student/join-module?access_code=${encodeURIComponent(accessCode.trim().toUpperCase())}`);
+      // Use existing backend endpoint to join module with access code and student_id
+      const response = await apiClient.post(`/api/student/join-module?access_code=${encodeURIComponent(accessCode.trim().toUpperCase())}&student_id=${encodeURIComponent(studentId.trim())}`);
 
       console.log('Join module response:', response); // Debug log
       
@@ -56,6 +74,7 @@ export default function ModuleAccessPage() {
         moduleName: moduleData.name,
         teacherId: moduleData.teacher_id,
         studentId: studentId.trim(),
+        accessCode: accessCode.trim().toUpperCase(),
         accessTime: new Date().toISOString(),
         permissions: ['view_questions', 'submit_answers']
       }));
@@ -63,8 +82,21 @@ export default function ModuleAccessPage() {
       // Update module info for display
       setModuleInfo(moduleData);
 
-      // Redirect to student module dashboard
-      router.push(`/student/module/${moduleData.id}`);
+      // Check if module requires consent
+      console.log('Module data:', moduleData);
+      console.log('Consent required?', moduleData.consent_required);
+      console.log('Consent form text:', moduleData.consent_form_text);
+
+      if (moduleData.consent_required !== false) {
+        // Show consent modal
+        console.log('Showing consent modal');
+        setEnrolledModule(moduleData);
+        setShowConsentModal(true);
+      } else {
+        // No consent required, redirect immediately
+        console.log('Consent not required, redirecting');
+        router.push(`/student/module/${moduleData.id}`);
+      }
     } catch (error) {
       console.error('Access code verification failed:', error);
       if (error.response?.status === 404) {
@@ -235,6 +267,27 @@ export default function ModuleAccessPage() {
           </div>
         </div>
       </div>
+
+      {/* Consent Modal */}
+      {showConsentModal && enrolledModule ? (
+        <>
+          {console.log('Rendering consent modal with:', {
+            isOpen: showConsentModal,
+            moduleId: enrolledModule.id,
+            moduleName: enrolledModule.name,
+            consentFormText: enrolledModule.consent_form_text,
+            studentId: studentId.trim()
+          })}
+          <ModuleConsentModal
+            isOpen={showConsentModal}
+            moduleId={enrolledModule.id}
+            moduleName={enrolledModule.name}
+            consentFormText={enrolledModule.consent_form_text}
+            studentId={studentId.trim()}
+            onConsentSubmitted={handleConsentSubmitted}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

@@ -82,12 +82,14 @@ function SettingsPageContent() {
 
   const handleSaveModule = async () => {
     if (!moduleData) return;
-    
+
     try {
       setIsSaving(true);
       await apiClient.put(`/api/modules/${moduleData.id}`, {
+        teacher_id: moduleData.teacher_id,
         name: formData.name,
         description: formData.description,
+        is_active: moduleData.is_active,
         assignment_config: formData.assignment_config
       });
       

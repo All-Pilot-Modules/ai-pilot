@@ -84,19 +84,25 @@ def generate_feedback_background(student_id: str, module_id: str, attempt: int, 
 @router.post("/join-module", response_model=ModuleOut)
 def join_module_with_code(
     access_code: str = Query(..., description="Module access code"),
+    student_id: str = Query(None, description="Student Banner ID"),
+    module_id: str = Query(None, description="Module ID (optional)"),
     db: Session = Depends(get_db)
 ):
     """
-    Allow students to join a module using access code
+    Allow students to join a module using access code.
+    Creates an enrollment record if student_id is provided.
     """
+    from app.models.student_enrollment import StudentEnrollment
+    from datetime import datetime
+
     print(f"🔍 Searching for access code: '{access_code}' (length: {len(access_code)})")
-    
+
     # Debug: Check all modules and their access codes
     all_modules = db.query(Module).all()
     print(f"📊 Total modules in database: {len(all_modules)}")
     for i, mod in enumerate(all_modules[:5]):  # Show first 5 modules
         print(f"  Module {i+1}: name='{mod.name}', access_code='{mod.access_code}', active={mod.is_active}")
-    
+
     # Try exact match first
     module = get_module_by_access_code(db, access_code.strip())
     if not module:
@@ -108,12 +114,35 @@ def join_module_with_code(
             if not module:
                 print(f"❌ No module found with access code: '{access_code}'")
                 raise HTTPException(status_code=404, detail="Invalid access code")
-    
+
     print(f"✅ Found module: '{module.name}' with access code: '{module.access_code}'")
-    
+
     if not module.is_active:
         raise HTTPException(status_code=400, detail="Module is not active")
-    
+
+    # Create enrollment record if student_id is provided
+    if student_id:
+        # Check if already enrolled
+        existing_enrollment = db.query(StudentEnrollment).filter(
+            StudentEnrollment.student_id == student_id,
+            StudentEnrollment.module_id == module.id
+        ).first()
+
+        if not existing_enrollment:
+            # Create new enrollment
+            enrollment = StudentEnrollment(
+                student_id=student_id,
+                module_id=module.id,
+                access_code_used=access_code.strip().upper(),
+                enrolled_at=datetime.utcnow()
+            )
+            db.add(enrollment)
+            db.commit()
+            db.refresh(enrollment)
+            print(f"✅ Created enrollment for student {student_id} in module {module.name}")
+        else:
+            print(f"ℹ️ Student {student_id} already enrolled in module {module.name}")
+
     return module
 
 # 📄 Get all documents in a module (for assignments)

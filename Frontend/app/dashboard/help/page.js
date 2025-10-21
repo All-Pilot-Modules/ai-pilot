@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { HelpCircle, Book, MessageCircle, FileText, ExternalLink } from "lucide-react";
+import { HelpCircle, Book, MessageCircle, FileText, ExternalLink, Github, BookOpen, Lightbulb, Video } from "lucide-react";
 import Link from "next/link";
 
 function HelpContent() {
@@ -65,51 +65,112 @@ function HelpContent() {
                   </div>
                 </div>
 
+                {/* GitHub Wiki Banner */}
+                <Card className="mb-6 border-2 border-primary/20 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30">
+                  <CardContent className="p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0">
+                        <Github className="w-8 h-8 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold text-foreground mb-2 flex items-center gap-2">
+                          Official Documentation Wiki
+                          <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs rounded-full font-semibold">
+                            Recommended
+                          </span>
+                        </h3>
+                        <p className="text-muted-foreground mb-4">
+                          Visit our comprehensive GitHub Wiki for detailed guides, tutorials, API documentation, and troubleshooting tips. Everything you need to know about AI Pilot.
+                        </p>
+                        <Button asChild size="lg" className="shadow-lg hover:shadow-xl transition-all">
+                          <Link href="https://github.com/All-Pilot-Modules/ai-pilot/wiki" target="_blank" rel="noopener noreferrer">
+                            <BookOpen className="mr-2 w-5 h-5" />
+                            Visit GitHub Wiki
+                            <ExternalLink className="ml-2 w-4 h-4" />
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   {/* Quick Help */}
-                  <Card>
+                  <Card className="border-border bg-card/50 backdrop-blur-sm shadow-lg">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
-                        <HelpCircle className="w-5 h-5" />
-                        Quick Help
+                        <Lightbulb className="w-5 h-5 text-primary" />
+                        Quick Start Guides
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <Button variant="outline" className="w-full justify-start">
-                        <Book className="mr-2 w-4 h-4" />
-                        Getting Started Guide
+                      <Button asChild variant="outline" className="w-full justify-start hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-500 transition-all">
+                        <Link href="https://github.com/All-Pilot-Modules/ai-pilot/wiki/Getting-Started" target="_blank" rel="noopener noreferrer">
+                          <Book className="mr-2 w-4 h-4" />
+                          Getting Started Guide
+                          <ExternalLink className="ml-auto w-3 h-3" />
+                        </Link>
                       </Button>
-                      <Button variant="outline" className="w-full justify-start">
-                        <FileText className="mr-2 w-4 h-4" />
-                        Creating Tests
+                      <Button asChild variant="outline" className="w-full justify-start hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-500 transition-all">
+                        <Link href="https://github.com/All-Pilot-Modules/ai-pilot/wiki/Creating-Tests" target="_blank" rel="noopener noreferrer">
+                          <FileText className="mr-2 w-4 h-4" />
+                          Creating Tests
+                          <ExternalLink className="ml-auto w-3 h-3" />
+                        </Link>
                       </Button>
-                      <Button variant="outline" className="w-full justify-start">
-                        <MessageCircle className="mr-2 w-4 h-4" />
-                        Managing Students
+                      <Button asChild variant="outline" className="w-full justify-start hover:bg-purple-50 dark:hover:bg-purple-950/30 hover:border-purple-500 transition-all">
+                        <Link href="https://github.com/All-Pilot-Modules/ai-pilot/wiki/Managing-Students" target="_blank" rel="noopener noreferrer">
+                          <MessageCircle className="mr-2 w-4 h-4" />
+                          Managing Students
+                          <ExternalLink className="ml-auto w-3 h-3" />
+                        </Link>
+                      </Button>
+                      <Button asChild variant="outline" className="w-full justify-start hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:border-orange-500 transition-all">
+                        <Link href="https://github.com/All-Pilot-Modules/ai-pilot/wiki/Video-Tutorials" target="_blank" rel="noopener noreferrer">
+                          <Video className="mr-2 w-4 h-4" />
+                          Video Tutorials
+                          <ExternalLink className="ml-auto w-3 h-3" />
+                        </Link>
                       </Button>
                     </CardContent>
                   </Card>
 
                   {/* Documentation */}
-                  <Card>
+                  <Card className="border-border bg-card/50 backdrop-blur-sm shadow-lg">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
-                        <Book className="w-5 h-5" />
-                        Documentation
+                        <Book className="w-5 h-5 text-primary" />
+                        Documentation & Resources
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <Button variant="outline" className="w-full justify-start">
-                        <ExternalLink className="mr-2 w-4 h-4" />
-                        API Documentation
+                      <Button asChild variant="outline" className="w-full justify-start hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-500 transition-all">
+                        <Link href="https://github.com/All-Pilot-Modules/ai-pilot/wiki/API-Documentation" target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="mr-2 w-4 h-4" />
+                          API Documentation
+                          <ExternalLink className="ml-auto w-3 h-3" />
+                        </Link>
                       </Button>
-                      <Button variant="outline" className="w-full justify-start">
-                        <ExternalLink className="mr-2 w-4 h-4" />
-                        User Manual
+                      <Button asChild variant="outline" className="w-full justify-start hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-500 transition-all">
+                        <Link href="https://github.com/All-Pilot-Modules/ai-pilot/wiki/User-Manual" target="_blank" rel="noopener noreferrer">
+                          <BookOpen className="mr-2 w-4 h-4" />
+                          Complete User Manual
+                          <ExternalLink className="ml-auto w-3 h-3" />
+                        </Link>
                       </Button>
-                      <Button variant="outline" className="w-full justify-start">
-                        <ExternalLink className="mr-2 w-4 h-4" />
-                        FAQ
+                      <Button asChild variant="outline" className="w-full justify-start hover:bg-purple-50 dark:hover:bg-purple-950/30 hover:border-purple-500 transition-all">
+                        <Link href="https://github.com/All-Pilot-Modules/ai-pilot/wiki/FAQ" target="_blank" rel="noopener noreferrer">
+                          <HelpCircle className="mr-2 w-4 h-4" />
+                          Frequently Asked Questions
+                          <ExternalLink className="ml-auto w-3 h-3" />
+                        </Link>
+                      </Button>
+                      <Button asChild variant="outline" className="w-full justify-start hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:border-orange-500 transition-all">
+                        <Link href="https://github.com/All-Pilot-Modules/ai-pilot/wiki/Troubleshooting" target="_blank" rel="noopener noreferrer">
+                          <FileText className="mr-2 w-4 h-4" />
+                          Troubleshooting Guide
+                          <ExternalLink className="ml-auto w-3 h-3" />
+                        </Link>
                       </Button>
                     </CardContent>
                   </Card>
@@ -149,20 +210,39 @@ function HelpContent() {
                 </Card>
 
                 {/* Contact Support */}
-                <Card>
+                <Card className="border-border bg-card/50 backdrop-blur-sm shadow-lg">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <MessageCircle className="w-5 h-5" />
+                      <MessageCircle className="w-5 h-5 text-primary" />
                       Need More Help?
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-muted-foreground mb-4">
-                      Can&apos;t find what you&apos;re looking for? Our support team is here to help.
+                      Can&apos;t find what you&apos;re looking for? Check out these additional resources or reach out to the community.
                     </p>
-                    <div className="flex gap-2">
-                      <Button>Contact Support</Button>
-                      <Button variant="outline">Community Forum</Button>
+                    <div className="flex flex-wrap gap-3">
+                      <Button asChild size="lg" className="shadow-lg hover:shadow-xl transition-all">
+                        <Link href="https://github.com/All-Pilot-Modules/ai-pilot/issues" target="_blank" rel="noopener noreferrer">
+                          <Github className="mr-2 w-5 h-5" />
+                          Report an Issue
+                          <ExternalLink className="ml-2 w-4 h-4" />
+                        </Link>
+                      </Button>
+                      <Button asChild variant="outline" size="lg">
+                        <Link href="https://github.com/All-Pilot-Modules/ai-pilot/discussions" target="_blank" rel="noopener noreferrer">
+                          <MessageCircle className="mr-2 w-5 h-5" />
+                          Community Discussions
+                          <ExternalLink className="ml-2 w-4 h-4" />
+                        </Link>
+                      </Button>
+                      <Button asChild variant="outline" size="lg">
+                        <Link href="https://github.com/All-Pilot-Modules/ai-pilot/wiki" target="_blank" rel="noopener noreferrer">
+                          <BookOpen className="mr-2 w-5 h-5" />
+                          Browse Wiki
+                          <ExternalLink className="ml-2 w-4 h-4" />
+                        </Link>
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

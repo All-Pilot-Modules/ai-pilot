@@ -127,12 +127,12 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
           )}
         </div>
 
-        {/* AI Chatbot Feedback */}
+        {/* AI Chatbot */}
         <div className="border rounded-lg p-4 bg-green-50/50 dark:bg-green-950/10 border-green-200 dark:border-green-800">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <MessageCircle className="w-4 h-4 text-green-600" />
-              <h4 className="font-medium text-sm">AI Chatbot Feedback</h4>
+              <h4 className="font-medium text-sm">AI Chatbot</h4>
             </div>
             <Switch
               checked={config.features.chatbot_feedback.enabled}

@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List, Dict, Any
+from datetime import datetime
 
-from app.schemas.module import ModuleCreate, ModuleOut
+from app.schemas.module import ModuleCreate, ModuleOut, ConsentFormUpdate
+from app.schemas.student_enrollment import WaiverStatusUpdate
 from app.crud.module import (
     create_module,
     get_module_by_id,
@@ -262,3 +264,117 @@ def validate_rubric_config(rubric_config: Dict[str, Any]):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
+
+# 📝 Update module consent form
+@router.put("/modules/{module_id}/consent-form")
+def update_consent_form(
+    module_id: UUID,
+    payload: ConsentFormUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Update the consent form text for a module (teacher only)
+    """
+    try:
+        module = get_module_by_id(db, module_id)
+        if not module:
+            raise HTTPException(status_code=404, detail="Module not found")
+
+        # Update consent form text if provided
+        if payload.consent_form_text is not None:
+            module.consent_form_text = payload.consent_form_text
+
+        # Update consent required setting
+        module.consent_required = payload.consent_required
+
+        db.commit()
+        db.refresh(module)
+
+        return {
+            "success": True,
+            "message": "Consent form updated successfully",
+            "module_id": str(module.id),
+            "consent_required": module.consent_required
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update consent form: {str(e)}")
+
+# 📋 Get consent status for a student in a module
+@router.get("/modules/{module_id}/consent/{student_id}")
+def get_student_consent_status(
+    module_id: UUID,
+    student_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Check if a student has submitted consent for a module
+    """
+    from app.models.student_enrollment import StudentEnrollment
+
+    enrollment = db.query(StudentEnrollment).filter(
+        StudentEnrollment.module_id == module_id,
+        StudentEnrollment.student_id == student_id
+    ).first()
+
+    if not enrollment:
+        return {
+            "has_consented": False,
+            "consent_status": None,
+            "is_enrolled": False
+        }
+
+    return {
+        "has_consented": enrollment.waiver_status is not None,
+        "consent_status": enrollment.waiver_status,
+        "consented_at": enrollment.consent_submitted_at,
+        "is_enrolled": True
+    }
+
+# ✍️ Submit student consent for a module
+@router.put("/modules/{module_id}/consent/{student_id}")
+def submit_module_consent(
+    module_id: UUID,
+    student_id: str,
+    waiver_data: WaiverStatusUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Submit or update student consent for a module
+    1 = Agree to research
+    2 = Not agree
+    3 = Not eligible
+    """
+    from app.models.student_enrollment import StudentEnrollment
+
+    # Validate consent status
+    if waiver_data.waiver_status not in [1, 2, 3]:
+        raise HTTPException(status_code=400, detail="Invalid consent status. Must be 1, 2, or 3")
+
+    # Check if module exists
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    # Find student enrollment
+    enrollment = db.query(StudentEnrollment).filter(
+        StudentEnrollment.module_id == module_id,
+        StudentEnrollment.student_id == student_id
+    ).first()
+
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Student not enrolled in this module")
+
+    # Update consent status
+    enrollment.waiver_status = waiver_data.waiver_status
+    enrollment.consent_submitted_at = datetime.utcnow()
+    db.commit()
+    db.refresh(enrollment)
+
+    return {
+        "success": True,
+        "message": "Consent status updated successfully",
+        "waiver_status": enrollment.waiver_status,
+        "consent_submitted_at": enrollment.consent_submitted_at
+    }

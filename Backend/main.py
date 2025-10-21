@@ -46,10 +46,10 @@ app.include_router(chat_router, prefix="/api", tags=["Chat"])
 @app.on_event("startup")
 def on_startup():
     # ✅ Ensure all models are imported for table creation
-    from app.models import user, document, question, module, student_answer, question_queue, document_chunk, document_embedding, ai_feedback, chat_conversation, chat_message
+    from app.models import user, document, question, module, student_answer, student_enrollment, question_queue, document_chunk, document_embedding, ai_feedback, chat_conversation, chat_message
     print("🚀 App started! Creating tables...")
     Base.metadata.create_all(bind=engine)
-    print("✅ All tables created successfully (including ai_feedback and chat tables)")
+    print("✅ All tables created successfully (including student_enrollments, ai_feedback and chat tables)")
 
 # 📎 Test route
 @app.get("/")

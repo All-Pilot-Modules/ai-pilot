@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { BookOpen, Users, AlertCircle, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/auth";
+import ModuleConsentModal from "@/components/ModuleConsentModal";
 
 export default function JoinModule() {
   const router = useRouter();
@@ -19,6 +20,23 @@ export default function JoinModule() {
     bannerId: '',
     accessCode: ''
   });
+
+  // Consent modal state
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [enrolledModule, setEnrolledModule] = useState(null);
+
+  const handleConsentSubmitted = (consentStatus) => {
+    // Mark consent as submitted in sessionStorage
+    if (enrolledModule) {
+      const accessData = JSON.parse(sessionStorage.getItem('student_module_access') || '{}');
+      accessData.consentSubmitted = true;
+      accessData.consentStatus = consentStatus;
+      sessionStorage.setItem('student_module_access', JSON.stringify(accessData));
+
+      // Redirect to module
+      router.push(`/student/module/${enrolledModule.id}`);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -51,13 +69,10 @@ export default function JoinModule() {
       // Try to join the module (will succeed if already enrolled)
 
       // Enroll student in module
-      await apiClient.post(`/api/student/join-module?access_code=${encodeURIComponent(formData.accessCode.trim())}`, {
-        student_id: formData.bannerId.trim(),
-        module_id: module.id
-      });
+      await apiClient.post(`/api/student/join-module?access_code=${encodeURIComponent(formData.accessCode.trim())}&student_id=${encodeURIComponent(formData.bannerId.trim())}&module_id=${module.id}`);
 
-      setSuccess('Successfully joined the module! Redirecting...');
-      
+      setSuccess('Successfully joined the module!');
+
       // Store access data in sessionStorage
       const accessData = {
         moduleId: module.id,
@@ -68,11 +83,24 @@ export default function JoinModule() {
         accessTime: new Date().toISOString()
       };
       sessionStorage.setItem('student_module_access', JSON.stringify(accessData));
-      
-      // Redirect to module page after short delay
-      setTimeout(() => {
-        router.push(`/student/module/${module.id}`);
-      }, 2000);
+
+      // Check if module requires consent
+      console.log('Module data:', module);
+      console.log('Consent required?', module.consent_required);
+      console.log('Consent form text:', module.consent_form_text);
+
+      if (module.consent_required !== false) {
+        // Show consent modal
+        console.log('Showing consent modal');
+        setEnrolledModule(module);
+        setShowConsentModal(true);
+      } else {
+        // No consent required, redirect immediately
+        console.log('Consent not required, redirecting');
+        setTimeout(() => {
+          router.push(`/student/module/${module.id}`);
+        }, 1500);
+      }
 
     } catch (error) {
       console.error('Join module error:', error);
@@ -181,6 +209,27 @@ export default function JoinModule() {
           </Button>
         </div>
       </div>
+
+      {/* Consent Modal */}
+      {showConsentModal && enrolledModule ? (
+        <>
+          {console.log('Rendering consent modal with:', {
+            isOpen: showConsentModal,
+            moduleId: enrolledModule.id,
+            moduleName: enrolledModule.name,
+            consentFormText: enrolledModule.consent_form_text,
+            studentId: formData.bannerId.trim()
+          })}
+          <ModuleConsentModal
+            isOpen={showConsentModal}
+            moduleId={enrolledModule.id}
+            moduleName={enrolledModule.name}
+            consentFormText={enrolledModule.consent_form_text}
+            studentId={formData.bannerId.trim()}
+            onConsentSubmitted={handleConsentSubmitted}
+          />
+        </>
+      ) : null}
     </div>
   );
 }

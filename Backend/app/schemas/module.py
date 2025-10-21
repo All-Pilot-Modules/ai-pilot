@@ -12,6 +12,8 @@ class ModuleBase(BaseModel):
     visibility: Optional[str] = "class-only"  # can be 'class-only' or 'public'
     slug: Optional[str] = None
     instructions: Optional[str] = None
+    consent_form_text: Optional[str] = None  # Customizable consent form text
+    consent_required: Optional[bool] = True  # Whether consent is required
     feedback_rubric: Optional[Dict[str, Any]] = None  # Dedicated rubric configuration
     assignment_config: Optional[Dict[str, Any]] = {
         "features": {
@@ -46,8 +48,14 @@ class ModuleOut(ModuleBase):
     id: UUID
     access_code: str
     created_at: datetime
+    consent_form_text: Optional[str] = None
+    consent_required: Optional[bool] = True
     feedback_rubric: Optional[Dict[str, Any]] = None
     assignment_config: Optional[Dict[str, Any]] = None
 
     class Config:
         orm_mode = True
+
+class ConsentFormUpdate(BaseModel):
+    consent_form_text: str = ""
+    consent_required: bool = True

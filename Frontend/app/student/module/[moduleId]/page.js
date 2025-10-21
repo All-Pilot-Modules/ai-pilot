@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/auth";
 import ChatTab from './ChatTab';
+import ModuleConsentModal from '@/components/ModuleConsentModal';
 
 export default function StudentModulePage() {
   const params = useParams();
@@ -55,6 +56,13 @@ export default function StudentModulePage() {
   const [isPolling, setIsPolling] = useState(false); // Track if we're actively polling
   const [answeredQuestions, setAnsweredQuestions] = useState({}); // Track which questions were answered
 
+  // Consent modal state
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [consentChecked, setConsentChecked] = useState(false);
+
+  // Check if chatbot is enabled based on module settings
+  const isChatbotEnabled = moduleData?.assignment_config?.features?.chatbot_feedback?.enabled ?? true;
+
   // Main effect to load module on mount
   useEffect(() => {
     // Check if student has valid access
@@ -73,6 +81,63 @@ export default function StudentModulePage() {
     setModuleAccess(access);
     loadModuleContent(access);
   }, [moduleId, router]);
+
+  // Check consent after module data is loaded
+  useEffect(() => {
+    if (moduleAccess && moduleData && !consentChecked) {
+      // If module doesn't require consent, skip the check entirely
+      if (moduleData.consent_required === false) {
+        console.log('Module does not require consent, skipping check');
+        setConsentChecked(true);
+        return;
+      }
+
+      // If consent was already submitted, skip the check
+      if (moduleAccess.consentSubmitted) {
+        console.log('Consent already submitted during enrollment, skipping check');
+        setConsentChecked(true);
+        return;
+      }
+
+      // Otherwise, check consent status
+      checkConsentStatus(moduleAccess);
+    }
+  }, [moduleAccess, moduleData, consentChecked]);
+
+  // Check if student has submitted consent for this module
+  const checkConsentStatus = async (access) => {
+    try {
+      const response = await apiClient.get(
+        `/api/modules/${moduleId}/consent/${access.studentId}`
+      );
+
+      const { has_consented, is_enrolled } = response;
+
+      // If module requires consent and student hasn't consented
+      if (is_enrolled && !has_consented) {
+        setShowConsentModal(true);
+      }
+
+      setConsentChecked(true);
+    } catch (error) {
+      console.error('Failed to check consent status:', error);
+      setConsentChecked(true); // Allow access if check fails
+    }
+  };
+
+  const handleConsentSubmitted = (consentStatus) => {
+    console.log('Consent submitted:', consentStatus);
+
+    // Update sessionStorage to mark consent as submitted
+    if (moduleAccess) {
+      const accessData = { ...moduleAccess, consentSubmitted: true, consentStatus };
+      sessionStorage.setItem('student_module_access', JSON.stringify(accessData));
+      setModuleAccess(accessData);
+    }
+
+    setShowConsentModal(false);
+    setConsentChecked(true);
+  };
 
   // Effect to update feedbackData when selectedAttempt changes
   useEffect(() => {
@@ -979,7 +1044,28 @@ export default function StudentModulePage() {
 
           {/* Chat Tab */}
           <TabsContent value="chat" className="space-y-6">
-            <ChatTab moduleId={moduleId} moduleAccess={moduleAccess} />
+            {isChatbotEnabled ? (
+              <ChatTab moduleId={moduleId} moduleAccess={moduleAccess} />
+            ) : (
+              <Card className="border-2 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+                <CardContent className="pt-6">
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <MessageSquare className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-amber-900 dark:text-amber-100 mb-2">
+                      AI Chatbot Not Available
+                    </h3>
+                    <p className="text-amber-700 dark:text-amber-300 mb-4">
+                      Your instructor has not enabled the AI chatbot for this module.
+                    </p>
+                    <p className="text-sm text-amber-600 dark:text-amber-400">
+                      Please use the other tabs to access your assignments, feedback, and materials.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* Materials Tab */}
@@ -1134,6 +1220,18 @@ export default function StudentModulePage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Consent Modal */}
+      {showConsentModal && moduleData && moduleAccess && (
+        <ModuleConsentModal
+          isOpen={showConsentModal}
+          moduleId={moduleId}
+          moduleName={moduleData.name || moduleAccess?.moduleName}
+          consentFormText={moduleData.consent_form_text}
+          studentId={moduleAccess.studentId}
+          onConsentSubmitted={handleConsentSubmitted}
+        />
+      )}
     </div>
   );
 }

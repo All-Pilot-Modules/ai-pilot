@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
@@ -39,6 +39,7 @@ import {
 
 export function AppSidebar(props) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const module = searchParams?.get('module'); // Get module from URL params
   const { user, logout } = useAuth();
 
@@ -76,8 +77,8 @@ export function AppSidebar(props) {
       <SidebarHeader className="border-b border-sidebar-border bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-950/30 dark:to-indigo-950/30">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-5 hover:bg-transparent cursor-default">
-              <div className="flex items-center gap-4">
+            <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-5 hover:bg-blue-100 dark:hover:bg-blue-950/50 cursor-pointer transition-colors">
+              <button onClick={() => router.push('/')} className="flex items-center gap-4 w-full">
                 <div className="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg">
                   <IconInnerShadowTop className="!size-6 text-white" />
                 </div>
@@ -89,7 +90,7 @@ export function AppSidebar(props) {
                     Education Platform
                   </span>
                 </div>
-              </div>
+              </button>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -133,16 +134,22 @@ export function AppSidebar(props) {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer">
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => router.push('/profile')}
+              >
                 <User className="mr-2 h-4 w-4" />
                 Profile
               </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer">
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => router.push('/settings')}
+              >
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout} className="cursor-pointer text-red-600 focus:text-red-600">
+              <DropdownMenuItem onClick={logout} className="cursor-pointer text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400">
                 <LogOut className="mr-2 h-4 w-4" />
                 Log out
               </DropdownMenuItem>

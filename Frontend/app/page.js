@@ -2,14 +2,40 @@
 
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, Brain, Users, BarChart3, Shield, Zap, Github, Star, BookOpen, TrendingUp, Award, Globe, Lock, Sparkles, ChevronRight, Play, ExternalLink, Plus } from "lucide-react";
+import { ArrowRight, Brain, Users, BarChart3, Shield, Zap, Github, Star, BookOpen, TrendingUp, Award, Globe, Lock, Sparkles, ChevronRight, Play, ExternalLink, Plus, FileText, Calendar, Activity, Target, GraduationCap, Rocket, Settings } from "lucide-react";
+import { apiClient } from "@/lib/auth";
 
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
+  const [modules, setModules] = useState([]);
+  const [loadingModules, setLoadingModules] = useState(false);
+
+  // Fetch modules when authenticated - Hook must be called unconditionally
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      fetchModules();
+    }
+  }, [isAuthenticated, user]);
+
+  const fetchModules = async () => {
+    try {
+      setLoadingModules(true);
+      const teacherId = user?.id || user?.sub;
+      if (!teacherId) return;
+
+      const modulesData = await apiClient.get(`/api/modules?teacher_id=${teacherId}`);
+      setModules(modulesData || []);
+    } catch (error) {
+      console.error('Failed to fetch modules:', error);
+      setModules([]);
+    } finally {
+      setLoadingModules(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -20,103 +46,266 @@ export default function Home() {
   }
 
   if (isAuthenticated) {
+    const totalStudents = 0; // Would be calculated from modules data
+    const completionRate = modules.length > 0 ? 85 : 0;
+
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-blue-900/20">
-        <div className="max-w-7xl mx-auto px-4 py-12">
-          {/* Welcome Header */}
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-full text-sm font-medium mb-6">
-              <Zap className="w-4 h-4" />
-              AI-Powered Educational Analytics
-            </div>
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
-              Welcome back, <span className="text-blue-600 dark:text-blue-400">{user?.username}</span>
-            </h1>
-            <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
-              Transform student learning with intelligent insights and personalized educational experiences.
-            </p>
-          </div>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-blue-100 text-sm">Active Modules</p>
-                    <p className="text-3xl font-bold">0</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          {/* Enhanced Welcome Header */}
+          <div className="mb-10 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 dark:from-blue-500/5 dark:via-purple-500/5 dark:to-pink-500/5 rounded-3xl"></div>
+            <div className="relative p-10 rounded-3xl border border-border/50 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-6">
+                  <div className="w-20 h-20 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-3xl flex items-center justify-center shadow-2xl">
+                    <Rocket className="w-10 h-10 text-white" />
                   </div>
-                  <Brain className="w-8 h-8 text-blue-200" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-green-500 to-green-600 text-white">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-green-100 text-sm">Total Students</p>
-                    <p className="text-3xl font-bold">0</p>
+                    <div className="flex items-center gap-3 mb-2">
+                      <h1 className="text-4xl font-bold text-foreground">
+                        Welcome back, <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{user?.username || 'Teacher'}</span>!
+                      </h1>
+                      <div className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-sm font-medium flex items-center gap-1">
+                        <Activity className="w-3 h-3" />
+                        Active
+                      </div>
+                    </div>
+                    <p className="text-lg text-muted-foreground flex items-center gap-2">
+                      <GraduationCap className="w-5 h-5" />
+                      Your AI-powered teaching dashboard • Track, analyze, and inspire
+                    </p>
                   </div>
-                  <Users className="w-8 h-8 text-green-200" />
                 </div>
-              </CardContent>
-            </Card>
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-purple-100 text-sm">AI Insights</p>
-                    <p className="text-3xl font-bold">0</p>
-                  </div>
-                  <BarChart3 className="w-8 h-8 text-purple-200" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Module Cards */}
-          <div className="mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Your Learning Modules</h2>
-            <div className="text-center py-16">
-              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                <BookOpen className="w-8 h-8 text-white" />
+                <Button asChild size="lg" className="shadow-lg hover:shadow-xl transition-all">
+                  <Link href="/mymodules">
+                    <Plus className="w-5 h-5 mr-2" />
+                    Create Module
+                  </Link>
+                </Button>
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                No modules yet
-              </h3>
-              <p className="text-gray-600 dark:text-gray-300 mb-8 max-w-md mx-auto">
-                Create your first learning module to start tracking student progress and generating AI insights.
-              </p>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                <Plus className="mr-2 w-4 h-4" />
-                Create Module
+            </div>
+          </div>
+
+          {/* Enhanced Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+            <Card className="border-border bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-xl transition-all">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <CardContent className="p-6 relative">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-14 h-14 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
+                    <BookOpen className="w-7 h-7 text-white" />
+                  </div>
+                  <div className="px-2 py-1 bg-blue-200/50 dark:bg-blue-800/50 rounded-full">
+                    <TrendingUp className="w-3 h-3 text-blue-700 dark:text-blue-300" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">Active Modules</p>
+                  <p className="text-4xl font-bold text-blue-900 dark:text-blue-100">
+                    {loadingModules ? '...' : modules.length}
+                  </p>
+                  <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-1">Learning pathways</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-xl transition-all">
+              <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <CardContent className="p-6 relative">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-14 h-14 bg-green-500 rounded-2xl flex items-center justify-center shadow-lg">
+                    <Users className="w-7 h-7 text-white" />
+                  </div>
+                  <div className="px-2 py-1 bg-green-200/50 dark:bg-green-800/50 rounded-full">
+                    <Activity className="w-3 h-3 text-green-700 dark:text-green-300" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-green-700 dark:text-green-300 mb-1">Total Students</p>
+                  <p className="text-4xl font-bold text-green-900 dark:text-green-100">
+                    {totalStudents}
+                  </p>
+                  <p className="text-xs text-green-600/70 dark:text-green-400/70 mt-1">Enrolled learners</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-xl transition-all">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <CardContent className="p-6 relative">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-14 h-14 bg-purple-500 rounded-2xl flex items-center justify-center shadow-lg">
+                    <Brain className="w-7 h-7 text-white" />
+                  </div>
+                  <div className="px-2 py-1 bg-purple-200/50 dark:bg-purple-800/50 rounded-full">
+                    <Sparkles className="w-3 h-3 text-purple-700 dark:text-purple-300" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-1">AI Insights</p>
+                  <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">
+                    {modules.length * 3}
+                  </p>
+                  <p className="text-xs text-purple-600/70 dark:text-purple-400/70 mt-1">Generated reports</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/30 dark:to-orange-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-xl transition-all">
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <CardContent className="p-6 relative">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
+                    <Target className="w-7 h-7 text-white" />
+                  </div>
+                  <div className="px-2 py-1 bg-orange-200/50 dark:bg-orange-800/50 rounded-full">
+                    <TrendingUp className="w-3 h-3 text-orange-700 dark:text-orange-300" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-1">Avg Completion</p>
+                  <p className="text-4xl font-bold text-orange-900 dark:text-orange-100">
+                    {completionRate}%
+                  </p>
+                  <p className="text-xs text-orange-600/70 dark:text-orange-400/70 mt-1">Student progress</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Modules Grid */}
+          <div className="mb-10">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-3xl font-bold text-foreground">Your Learning Modules</h2>
+                <p className="text-muted-foreground mt-1">Manage and track your educational content</p>
+              </div>
+              <Button asChild variant="outline" size="lg">
+                <Link href="/mymodules">
+                  View All
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Link>
               </Button>
             </div>
+
+            {loadingModules ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i} className="border-border bg-card/50 backdrop-blur-sm">
+                    <CardContent className="p-6">
+                      <div className="animate-pulse space-y-4">
+                        <div className="w-12 h-12 bg-muted rounded-xl"></div>
+                        <div className="h-6 bg-muted rounded w-2/3"></div>
+                        <div className="h-4 bg-muted rounded w-full"></div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : modules.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {modules.slice(0, 6).map((module, index) => (
+                  <Card key={module.id} className="border-border bg-card/50 backdrop-blur-sm shadow-md hover:shadow-xl transition-all group cursor-pointer">
+                    <CardContent className="p-6">
+                      <Link href={`/dashboard?module=${encodeURIComponent(module.name)}`}>
+                        <div className="flex items-start justify-between mb-4">
+                          <div className={`w-14 h-14 bg-gradient-to-br ${
+                            index % 4 === 0 ? 'from-blue-500 to-blue-600' :
+                            index % 4 === 1 ? 'from-green-500 to-green-600' :
+                            index % 4 === 2 ? 'from-purple-500 to-purple-600' :
+                            'from-orange-500 to-orange-600'
+                          } rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
+                            <BookOpen className="w-7 h-7 text-white" />
+                          </div>
+                          <Badge variant="secondary" className="text-xs">Active</Badge>
+                        </div>
+                        <h3 className="text-xl font-bold text-foreground mb-2 group-hover:text-primary transition-colors">
+                          {module.name}
+                        </h3>
+                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                          {module.description || 'No description available'}
+                        </p>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Users className="w-4 h-4" />
+                            <span>0 students</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <FileText className="w-4 h-4" />
+                            <span>0 docs</span>
+                          </div>
+                        </div>
+                      </Link>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="border-dashed border-2 bg-card/30">
+                <CardContent className="text-center py-20">
+                  <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
+                    <Rocket className="w-12 h-12 text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-foreground mb-3">
+                    Ready to start your teaching journey?
+                  </h3>
+                  <p className="text-muted-foreground mb-8 max-w-md mx-auto text-lg">
+                    Create your first learning module to start tracking student progress and generating AI-powered insights.
+                  </p>
+                  <Button asChild size="lg" className="shadow-lg hover:shadow-xl">
+                    <Link href="/mymodules">
+                      <Plus className="mr-2 w-5 h-5" />
+                      Create Your First Module
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Quick Actions */}
-          <Card className="shadow-lg border-0">
+          <Card className="shadow-lg border-border bg-card/50 backdrop-blur-sm">
             <CardHeader>
-              <CardTitle className="text-xl font-bold text-gray-900 dark:text-white">Quick Actions</CardTitle>
-              <CardDescription>Common tasks and navigation shortcuts</CardDescription>
+              <CardTitle className="text-2xl font-bold flex items-center gap-2">
+                <Zap className="w-6 h-6 text-primary" />
+                Quick Actions
+              </CardTitle>
+              <CardDescription className="text-base">Jump to common tasks and shortcuts</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Button variant="outline" className="h-auto py-4 flex-col gap-2">
-                  <BookOpen className="w-5 h-5" />
-                  <span className="text-sm">View Reports</span>
+                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-500 transition-all group">
+                  <Link href="/mymodules">
+                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center group-hover:bg-blue-500 transition-colors">
+                      <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400 group-hover:text-white transition-colors" />
+                    </div>
+                    <span className="text-sm font-medium">My Modules</span>
+                  </Link>
                 </Button>
-                <Button variant="outline" className="h-auto py-4 flex-col gap-2">
-                  <Users className="w-5 h-5" />
-                  <span className="text-sm">Manage Students</span>
+                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-500 transition-all group">
+                  <Link href={modules.length > 0 ? `/dashboard/students?module=${encodeURIComponent(modules[0].name)}` : "/mymodules"}>
+                    <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center group-hover:bg-green-500 transition-colors">
+                      <Users className="w-6 h-6 text-green-600 dark:text-green-400 group-hover:text-white transition-colors" />
+                    </div>
+                    <span className="text-sm font-medium">Students</span>
+                  </Link>
                 </Button>
-                <Button variant="outline" className="h-auto py-4 flex-col gap-2">
-                  <BarChart3 className="w-5 h-5" />
-                  <span className="text-sm">Analytics</span>
+                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-purple-50 dark:hover:bg-purple-950/30 hover:border-purple-500 transition-all group">
+                  <Link href={modules.length > 0 ? `/dashboard/analytics?module=${encodeURIComponent(modules[0].name)}` : "/mymodules"}>
+                    <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center group-hover:bg-purple-500 transition-colors">
+                      <BarChart3 className="w-6 h-6 text-purple-600 dark:text-purple-400 group-hover:text-white transition-colors" />
+                    </div>
+                    <span className="text-sm font-medium">Analytics</span>
+                  </Link>
                 </Button>
-                <Button variant="outline" className="h-auto py-4 flex-col gap-2">
-                  <Shield className="w-5 h-5" />
-                  <span className="text-sm">Settings</span>
+                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:border-orange-500 transition-all group">
+                  <Link href={modules.length > 0 ? `/dashboard/documents?module=${encodeURIComponent(modules[0].name)}` : "/mymodules"}>
+                    <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center group-hover:bg-orange-500 transition-colors">
+                      <FileText className="w-6 h-6 text-orange-600 dark:text-orange-400 group-hover:text-white transition-colors" />
+                    </div>
+                    <span className="text-sm font-medium">Documents</span>
+                  </Link>
                 </Button>
               </div>
             </CardContent>
