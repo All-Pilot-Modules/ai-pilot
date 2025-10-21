@@ -51,12 +51,6 @@ export default function MyModules() {
   const [copiedItems, setCopiedItems] = useState({});
   const [deletingModules, setDeletingModules] = useState({});
 
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      fetchModules();
-    }
-  }, [isAuthenticated, user]);
-
   const fetchModules = async () => {
     try {
       const data = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
@@ -65,6 +59,13 @@ export default function MyModules() {
       console.error('Failed to fetch modules:', error);
     }
   };
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      fetchModules();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

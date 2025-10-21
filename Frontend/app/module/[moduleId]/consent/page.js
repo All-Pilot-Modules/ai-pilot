@@ -18,12 +18,6 @@ export default function ModuleConsentPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (moduleId) {
-      loadModule();
-    }
-  }, [moduleId]);
-
   const loadModule = async () => {
     try {
       setLoading(true);
@@ -36,6 +30,13 @@ export default function ModuleConsentPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (moduleId) {
+      loadModule();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moduleId]);
 
   const handleUpdate = (updatedModule) => {
     setModule(updatedModule);
@@ -115,7 +116,7 @@ export default function ModuleConsentPage() {
               • Their consent choice is recorded in the system and can be viewed in student analytics
             </p>
             <p>
-              • You can disable consent requirements at any time by toggling the "Require Consent" switch
+              • You can disable consent requirements at any time by toggling the &quot;Require Consent&quot; switch
             </p>
             <p>
               • The consent form supports basic Markdown formatting for better readability
