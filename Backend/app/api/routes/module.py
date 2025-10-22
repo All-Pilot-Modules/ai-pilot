@@ -378,3 +378,91 @@ def submit_module_consent(
         "waiver_status": enrollment.waiver_status,
         "consent_submitted_at": enrollment.consent_submitted_at
     }
+
+# 🤖 Get chatbot instructions for a module
+@router.get("/modules/{module_id}/chatbot-instructions")
+def get_chatbot_instructions(
+    module_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Get the custom chatbot instructions for a module
+    """
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    # Get chatbot settings from assignment_config
+    chatbot_config = module.assignment_config.get("features", {}).get("chatbot_feedback", {})
+    chatbot_enabled = chatbot_config.get("enabled", True)
+
+    # Default instructions if none set
+    default_instructions = """You are a helpful and encouraging AI tutor for this course.
+
+Response Style:
+- Be clear, concise, and patient
+- Use simple language appropriate for students
+- Provide examples when explaining concepts
+- Encourage critical thinking by asking guiding questions
+- Be supportive and positive in your tone
+
+Guidelines:
+- Always base your answers on the course materials provided
+- If you don't know something or it's not in the materials, say so honestly
+- Break down complex topics into simpler parts
+- Help students learn, don't just give direct answers
+- Reference specific pages or sections from course materials when relevant"""
+
+    return {
+        "module_id": str(module_id),
+        "module_name": module.name,
+        "chatbot_enabled": chatbot_enabled,
+        "chatbot_instructions": module.chatbot_instructions or default_instructions,
+        "is_custom": module.chatbot_instructions is not None and module.chatbot_instructions.strip() != ""
+    }
+
+# 🤖 Update chatbot instructions for a module
+@router.put("/modules/{module_id}/chatbot-instructions")
+def update_chatbot_instructions(
+    module_id: UUID,
+    instructions_data: dict,
+    db: Session = Depends(get_db)
+):
+    """
+    Update the custom chatbot instructions for a module
+    Only allowed if chatbot is enabled
+    """
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    # Check if chatbot is enabled
+    chatbot_config = module.assignment_config.get("features", {}).get("chatbot_feedback", {})
+    chatbot_enabled = chatbot_config.get("enabled", True)
+
+    if not chatbot_enabled:
+        raise HTTPException(
+            status_code=400,
+            detail="Chatbot is disabled for this module. Enable it first before customizing instructions."
+        )
+
+    # Get instructions from request
+    new_instructions = instructions_data.get("instructions", "").strip()
+
+    if not new_instructions:
+        raise HTTPException(status_code=400, detail="Instructions cannot be empty")
+
+    if len(new_instructions) > 5000:
+        raise HTTPException(status_code=400, detail="Instructions too long. Maximum 5000 characters.")
+
+    # Update the instructions
+    module.chatbot_instructions = new_instructions
+    db.commit()
+    db.refresh(module)
+
+    return {
+        "success": True,
+        "message": "Chatbot instructions updated successfully",
+        "module_id": str(module_id),
+        "chatbot_instructions": module.chatbot_instructions
+    }

@@ -55,6 +55,9 @@ function QuestionsPageContent() {
   const [selectedQuestion, setSelectedQuestion] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [selectedImageFile, setSelectedImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [questionForm, setQuestionForm] = useState({
     type: "mcq",
     text: "",
@@ -122,23 +125,18 @@ function QuestionsPageContent() {
   const getQuestionIcon = (type) => {
     switch (type) {
       case 'mcq':
-        return <CheckCircle className="w-5 h-5 text-blue-500" />;
+        return <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
       case 'short':
-        return <MessageCircle className="w-5 h-5 text-green-500" />;
+        return <MessageCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
       case 'long':
-        return <AlignLeft className="w-5 h-5 text-purple-500" />;
+        return <AlignLeft className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
       default:
         return <HelpCircle className="w-5 h-5 text-gray-500" />;
     }
   };
 
   const getQuestionTypeBadge = (type) => {
-    const colors = {
-      mcq: "bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-300",
-      short: "bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-300",
-      long: "bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-300"
-    };
-    return colors[type] || "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+    return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-0";
   };
 
   const filteredQuestions = questions.filter(question => {
@@ -191,10 +189,28 @@ function QuestionsPageContent() {
 
       console.log('📝 Creating question with payload:', payload);
       const response = await apiClient.post('/api/questions', payload);
-      setQuestions([response, ...questions]);
+      console.log('✅ Question created with ID:', response.id);
+
+      // Upload image if one was selected
+      if (selectedImageFile) {
+        console.log('📷 Question created, now uploading image...');
+        const imageUrl = await handleImageUpload(response.id);
+
+        if (imageUrl) {
+          console.log('✅ Image uploaded successfully:', imageUrl);
+          response.image_url = imageUrl;
+        } else {
+          console.warn('⚠️ Image upload returned null');
+        }
+      } else {
+        console.log('ℹ️ No image selected for this question');
+      }
+
+      setQuestions([...questions, response]);
       resetForm();
+      clearImageSelection();
       setShowCreateForm(false);
-      console.log('✅ Question created successfully:', response.id);
+      console.log('✅ Question creation complete!');
     } catch (error) {
       console.error('❌ Create error:', error);
       alert(`Failed to create question: ${error.message}\n\nPlease check the console for details.`);
@@ -223,10 +239,20 @@ function QuestionsPageContent() {
       };
 
       const response = await apiClient.put(`/api/questions/${selectedQuestion.id}`, payload);
+
+      // Upload new image if one was selected
+      if (selectedImageFile) {
+        const imageUrl = await handleImageUpload(selectedQuestion.id);
+        if (imageUrl) {
+          response.image_url = imageUrl;
+        }
+      }
+
       setQuestions(questions.map(q => q.id === selectedQuestion.id ? response : q));
       setIsEditOpen(false);
       setSelectedQuestion(null);
       resetForm();
+      clearImageSelection();
     } catch (error) {
       console.error('Edit error:', error);
     }
@@ -243,7 +269,7 @@ function QuestionsPageContent() {
 
   const openEditDialog = (question) => {
     setSelectedQuestion(question);
-    
+
     // Convert options from dict to array for form handling
     let optionsArray = ["", "", "", ""];
     if (question.options && typeof question.options === 'object') {
@@ -251,19 +277,38 @@ function QuestionsPageContent() {
       // Ensure we have 4 slots
       while (optionsArray.length < 4) optionsArray.push("");
     }
-    
+
+    // Get the correct option ID - could be in correct_option_id or correct_answer for MCQ
+    let correctOptionId = "";
+    if (question.type === "mcq") {
+      correctOptionId = question.correct_option_id || question.correct_answer || "";
+    }
+
+    console.log("📝 Opening edit dialog for question:", question);
+    console.log("Options:", optionsArray);
+    console.log("Correct option ID:", correctOptionId);
+
     setQuestionForm({
       type: question.type,
       text: question.text,
       slide_number: question.slide_number?.toString() || "",
       options: optionsArray,
-      correct_answer: question.correct_answer || "",
-      correct_option_id: question.correct_option_id || "",
+      correct_answer: question.type !== "mcq" ? (question.correct_answer || "") : "",
+      correct_option_id: correctOptionId,
       learning_outcome: question.learning_outcome || "",
       bloom_taxonomy: question.bloom_taxonomy || "",
       image_url: question.image_url || "",
       has_text_input: question.has_text_input || false
     });
+
+    // Set image preview if question has an image
+    if (question.image_url) {
+      setImagePreview(question.image_url);
+    } else {
+      setImagePreview(null);
+    }
+    setSelectedImageFile(null);
+
     setIsEditOpen(true);
   };
 
@@ -271,6 +316,152 @@ function QuestionsPageContent() {
     const newOptions = [...questionForm.options];
     newOptions[index] = value;
     setQuestionForm({...questionForm, options: newOptions});
+  };
+
+  const handleImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        alert('Please select a valid image file (JPG, PNG, GIF, or WebP)');
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image must be less than 5MB');
+        return;
+      }
+
+      setSelectedImageFile(file);
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleImageUpload = async (questionId) => {
+    if (!selectedImageFile) {
+      console.log('No image file selected');
+      return null;
+    }
+
+    try {
+      setIsUploadingImage(true);
+      const formData = new FormData();
+      formData.append('file', selectedImageFile);
+
+      console.log('==================== IMAGE UPLOAD START ====================');
+      console.log('📤 Uploading image for question:', questionId);
+      console.log('File name:', selectedImageFile.name);
+      console.log('File type:', selectedImageFile.type);
+      console.log('File size:', selectedImageFile.size, 'bytes');
+      console.log('API endpoint:', `/api/questions/${questionId}/upload-image`);
+
+      // Use native fetch instead of apiClient to properly handle multipart/form-data
+      const token = localStorage.getItem('token');
+      const fetchResponse = await fetch(`http://localhost:8000/api/questions/${questionId}/upload-image`, {
+        method: 'POST',
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+          // Do NOT set Content-Type - browser sets it automatically with boundary for FormData
+        },
+        body: formData
+      });
+
+      if (!fetchResponse.ok) {
+        const errorData = await fetchResponse.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP ${fetchResponse.status}`);
+      }
+
+      const response = await fetchResponse.json();
+
+      console.log('✅ Upload successful!');
+      console.log('Response:', JSON.stringify(response, null, 2));
+
+      // Response is the parsed JSON directly from fetch
+      const imageUrl = response.image_url;
+
+      if (!imageUrl) {
+        console.error('❌ No image_url in response!');
+        console.error('Full response object:', response);
+        throw new Error('Server did not return image URL');
+      }
+
+      console.log('Image URL:', imageUrl);
+      console.log('==================== IMAGE UPLOAD END ====================');
+
+      return imageUrl;
+    } catch (error) {
+      console.error('==================== IMAGE UPLOAD ERROR ====================');
+      console.error('❌ Image upload failed!');
+
+      // Try to stringify the entire error object
+      try {
+        console.error('Error (stringified):', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
+      } catch (e) {
+        console.error('Error (could not stringify):', error);
+      }
+
+      console.error('Error message:', error.message);
+      console.error('Error name:', error.name);
+      console.error('Error stack:', error.stack);
+
+      console.error('==================== ERROR END ====================');
+
+      const errorMsg = (typeof error.message === 'string' ? error.message : JSON.stringify(error.message))
+        || 'Unknown error';
+
+      alert(`Failed to upload image: ${errorMsg}\n\nCheck browser console for details.`);
+      return null;
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const handleImageRemove = async (questionId) => {
+    if (!confirm('Remove image from this question?')) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:8000/api/questions/${questionId}/image`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
+      }
+
+      // Update local state
+      setQuestionForm({...questionForm, image_url: ""});
+      setImagePreview(null);
+      setSelectedImageFile(null);
+
+      // Update questions list
+      setQuestions(questions.map(q =>
+        q.id === questionId ? {...q, image_url: null} : q
+      ));
+
+      alert('Image removed successfully');
+    } catch (error) {
+      console.error('Image remove error:', error);
+      alert('Failed to remove image');
+    }
+  };
+
+  const clearImageSelection = () => {
+    setSelectedImageFile(null);
+    setImagePreview(null);
   };
 
   if (loading) {
@@ -327,15 +518,15 @@ function QuestionsPageContent() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* Left Sidebar - Create Question Form */}
               <div className="lg:col-span-4">
-                <Card className="sticky top-6">
-                  <CardHeader>
+                <Card className={`sticky top-6 max-h-[calc(100vh-8rem)] overflow-hidden flex flex-col ${isEditOpen ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <CardHeader className="flex-shrink-0">
                     <CardTitle className="text-lg text-blue-600 dark:text-blue-400 flex items-center gap-2">
                       <Plus className="w-5 h-5" />
                       Create New Question
                     </CardTitle>
                     <CardDescription>Add a new question to your module</CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="overflow-y-auto flex-1">
                     <form onSubmit={handleCreate} className="space-y-4">
                       <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
                         <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
@@ -368,7 +559,63 @@ function QuestionsPageContent() {
                           required
                           rows={3}
                           className="mt-1"
+                          spellCheck={true}
                         />
+                      </div>
+
+                      {/* Image Upload Section */}
+                      <div>
+                        <Label>Question Image (Optional)</Label>
+                        <div className="mt-2 space-y-3">
+                          {imagePreview ? (
+                            <div className="relative">
+                              <img
+                                src={imagePreview}
+                                alt="Question preview"
+                                className="w-full max-h-64 object-contain rounded-lg border border-border"
+                              />
+                              <div className="flex gap-2 mt-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => document.getElementById('image-upload').click()}
+                                >
+                                  <Image className="w-4 h-4 mr-2" />
+                                  Replace Image
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={clearImageSelection}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Remove
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div
+                              onClick={() => document.getElementById('image-upload').click()}
+                              className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors"
+                            >
+                              <Image className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                              <p className="text-sm font-medium mb-1">Click to upload an image</p>
+                              <p className="text-xs text-muted-foreground">
+                                JPG, PNG, GIF or WebP (max 5MB)
+                              </p>
+                            </div>
+                          )}
+                          <input
+                            id="image-upload"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageSelect}
+                            className="hidden"
+                          />
+                        </div>
                       </div>
 
                       {questionForm.type === "mcq" && (
@@ -385,6 +632,7 @@ function QuestionsPageContent() {
                                   onChange={(e) => handleOptionChange(index, e.target.value)}
                                   placeholder={`Option ${index + 1}`}
                                   className="flex-1 text-sm"
+                                  spellCheck={true}
                                 />
                               </div>
                             ))}
@@ -422,6 +670,7 @@ function QuestionsPageContent() {
                             onChange={(e) => setQuestionForm({...questionForm, correct_answer: e.target.value})}
                             placeholder="Enter correct answer"
                             className="mt-1"
+                            spellCheck={true}
                           />
                         )}
                       </div>
@@ -502,12 +751,17 @@ function QuestionsPageContent() {
 
                 {/* Questions List */}
                 <div className="space-y-4">
-                  {filteredQuestions.map((question) => (
+                  {filteredQuestions.map((question, index) => (
                     <Card key={question.id} className="border-0 shadow-sm bg-white dark:bg-slate-900/50 hover:shadow-md transition-all duration-200">
                       <CardContent className="p-6">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-4 flex-1 min-w-0">
-                        {getQuestionIcon(question.type)}
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-10 h-10 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                            {index + 1}
+                          </div>
+                          {getQuestionIcon(question.type)}
+                        </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <Badge className={`text-xs ${getQuestionTypeBadge(question.type)}`}>
@@ -525,22 +779,59 @@ function QuestionsPageContent() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-foreground font-medium mb-2 leading-relaxed">
+                          <p className="text-foreground font-medium mb-3 leading-relaxed">
                             {question.text}
                           </p>
+                          {question.image_url && (
+                            <div className="mb-3">
+                              <img
+                                src={question.image_url}
+                                alt="Question illustration"
+                                className="max-h-48 rounded-lg border border-border object-contain"
+                              />
+                            </div>
+                          )}
                           {question.type === "mcq" && question.options && typeof question.options === 'object' && (
-                            <div className="space-y-1 text-sm text-muted-foreground">
-                              {Object.entries(question.options).map(([key, option]) => (
-                                <div key={key} className="flex items-center gap-2">
-                                  <span className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-xs">
-                                    {key}
-                                  </span>
-                                  <span>{option}</span>
-                                  {key === (question.correct_option_id || question.correct_answer) && (
-                                    <CheckCircle className="w-4 h-4 text-green-500" />
-                                  )}
+                            <div className="space-y-2 text-sm">
+                              {Object.entries(question.options).map(([key, option]) => {
+                                const isCorrect = key === (question.correct_option_id || question.correct_answer);
+                                return (
+                                  <div
+                                    key={key}
+                                    className={`flex items-center gap-2 p-3 rounded-lg border ${
+                                      isCorrect
+                                        ? 'bg-green-50 dark:bg-green-950/50 border-green-300 dark:border-green-700'
+                                        : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                                    }`}
+                                  >
+                                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                      isCorrect
+                                        ? 'bg-green-600 dark:bg-green-500 text-white'
+                                        : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                                    }`}>
+                                      {key}
+                                    </span>
+                                    <span className={`flex-1 ${isCorrect ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>{option}</span>
+                                    {isCorrect && (
+                                      <div className="ml-auto flex items-center gap-1.5 text-green-700 dark:text-green-400">
+                                        <CheckCircle className="w-4 h-4" />
+                                        <span className="text-xs font-bold">Correct</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {question.type !== "mcq" && question.correct_answer && (
+                            <div className="mt-3 p-3 bg-green-50 dark:bg-green-950/50 border border-green-300 dark:border-green-700 rounded-lg">
+                              <div className="flex items-start gap-2">
+                                <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-500 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-xs font-bold text-green-700 dark:text-green-400 mb-1.5">Correct Answer:</p>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">{question.correct_answer}</p>
                                 </div>
-                              ))}
+                              </div>
                             </div>
                           )}
                           {question.learning_outcome && (
@@ -611,24 +902,32 @@ function QuestionsPageContent() {
       
       {/* Edit Drawer */}
         <Drawer open={isEditOpen} onOpenChange={setIsEditOpen}>
-          <DrawerContent className="max-h-[90vh] overflow-y-auto">
-            <DrawerHeader>
-              <DrawerTitle>Edit Question</DrawerTitle>
-              <DrawerDescription>
-                Update question information
-              </DrawerDescription>
+          <DrawerContent className="max-h-[85vh] flex flex-col">
+            <DrawerHeader className="border-b bg-blue-50 dark:bg-blue-950/30 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <Edit3 className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <DrawerTitle className="text-lg">Edit Question</DrawerTitle>
+                  <DrawerDescription className="text-sm">
+                    Update question details for {moduleName}
+                  </DrawerDescription>
+                </div>
+              </div>
             </DrawerHeader>
-            <div className="px-4 space-y-4 pb-4">
-              <form onSubmit={handleEdit} className="space-y-4">
-                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+
+            <form onSubmit={handleEdit} className="flex flex-col flex-1 min-h-0">
+              <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1">
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
                   <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
                     <BookOpen className="w-4 h-4" />
-                    <span>Editing question for module: <strong>{moduleName}</strong></span>
+                    <span>Module: <strong>{moduleName}</strong></span>
                   </div>
                 </div>
 
                 <div>
-                  <Label htmlFor="edit-type">Question Type</Label>
+                  <Label htmlFor="edit-type">Question Type *</Label>
                   <Select value={questionForm.type} onValueChange={(value) => setQuestionForm({...questionForm, type: value})}>
                     <SelectTrigger className="mt-1">
                       <SelectValue />
@@ -642,7 +941,7 @@ function QuestionsPageContent() {
                 </div>
 
                 <div>
-                  <Label htmlFor="edit-text">Question Text</Label>
+                  <Label htmlFor="edit-text">Question Text *</Label>
                   <Textarea
                     id="edit-text"
                     value={questionForm.text}
@@ -650,24 +949,150 @@ function QuestionsPageContent() {
                     placeholder="Enter your question..."
                     required
                     rows={3}
+                    className="mt-1"
+                    spellCheck={true}
                   />
+                </div>
+
+                {/* Image Upload Section */}
+                <div>
+                  <Label>Question Image (Optional)</Label>
+                  <div className="mt-2 space-y-3">
+                    {imagePreview ? (
+                      <div className="relative">
+                        <img
+                          src={imagePreview}
+                          alt="Question preview"
+                          className="w-full max-h-64 object-contain rounded-lg border border-border"
+                        />
+                        <div className="flex gap-2 mt-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => document.getElementById('edit-image-upload').click()}
+                          >
+                            <Image className="w-4 h-4 mr-2" />
+                            Replace Image
+                          </Button>
+                          {questionForm.image_url && !selectedImageFile ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleImageRemove(selectedQuestion.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete from Storage
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={clearImageSelection}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => document.getElementById('edit-image-upload').click()}
+                        className="border-2 border-dashed border-border rounded-lg p-8 text-center cursor-pointer hover:border-primary hover:bg-accent/50 transition-colors"
+                      >
+                        <Image className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
+                        <p className="text-sm font-medium mb-1">Click to upload an image</p>
+                        <p className="text-xs text-muted-foreground">
+                          JPG, PNG, GIF or WebP (max 5MB)
+                        </p>
+                      </div>
+                    )}
+                    <input
+                      id="edit-image-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageSelect}
+                      className="hidden"
+                    />
+                  </div>
                 </div>
 
                 {questionForm.type === "mcq" && (
                   <div>
-                    <Label>Answer Options</Label>
-                    <div className="space-y-2">
+                    <Label>Answer Options *</Label>
+                    <div className="space-y-2 mt-2">
                       {questionForm.options.map((option, index) => (
-                        <Input
-                          key={index}
-                          value={option}
-                          onChange={(e) => handleOptionChange(index, e.target.value)}
-                          placeholder={`Option ${index + 1}`}
-                        />
+                        <div key={index} className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-xs font-medium text-blue-600 dark:text-blue-400">
+                            {String.fromCharCode(65 + index)}
+                          </span>
+                          <Input
+                            value={option}
+                            onChange={(e) => handleOptionChange(index, e.target.value)}
+                            placeholder={`Option ${index + 1}`}
+                            className="flex-1 text-sm"
+                            spellCheck={true}
+                          />
+                        </div>
                       ))}
                     </div>
                   </div>
                 )}
+
+                <div>
+                  <Label htmlFor="edit-correct_answer">Correct Answer {questionForm.type === "mcq" && "*"}</Label>
+                  {questionForm.type === "mcq" ? (
+                    <div className="mt-1">
+                      <Select
+                        value={questionForm.correct_option_id || ""}
+                        onValueChange={(value) => {
+                          console.log("✅ Selected correct option:", value);
+                          setQuestionForm({...questionForm, correct_option_id: value});
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select the correct option">
+                            {questionForm.correct_option_id && (
+                              <span>{questionForm.correct_option_id} - {questionForm.options[questionForm.correct_option_id.charCodeAt(0) - 65]}</span>
+                            )}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {questionForm.options
+                            .map((option, index) => {
+                              const letter = String.fromCharCode(65 + index);
+                              if (!option.trim()) return null;
+                              return (
+                                <SelectItem key={letter} value={letter}>
+                                  {letter} - {option}
+                                </SelectItem>
+                              );
+                            })
+                            .filter(Boolean)}
+                        </SelectContent>
+                      </Select>
+                      {questionForm.correct_option_id && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Selected: {questionForm.correct_option_id} - {questionForm.options[questionForm.correct_option_id.charCodeAt(0) - 65]}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <Input
+                      id="edit-correct_answer"
+                      value={questionForm.correct_answer}
+                      onChange={(e) => setQuestionForm({...questionForm, correct_answer: e.target.value})}
+                      placeholder="Enter correct answer"
+                      className="mt-1"
+                      spellCheck={true}
+                    />
+                  )}
+                </div>
 
                 <div>
                   <Label htmlFor="edit-slide_number">Slide Number</Label>
@@ -677,91 +1102,39 @@ function QuestionsPageContent() {
                     value={questionForm.slide_number}
                     onChange={(e) => setQuestionForm({...questionForm, slide_number: e.target.value})}
                     placeholder="Optional"
+                    className="mt-1"
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="edit-correct_answer">Correct Answer {questionForm.type === "mcq" && "*"}</Label>
-                  {questionForm.type === "mcq" ? (
-                    <Select
-                      value={questionForm.correct_option_id}
-                      onValueChange={(value) => setQuestionForm({...questionForm, correct_option_id: value})}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select the correct option" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {questionForm.options
-                          .filter(opt => opt.trim())
-                          .map((option, index) => {
-                            const letter = String.fromCharCode(65 + index);
-                            return (
-                              <SelectItem key={letter} value={letter}>
-                                {letter} - {option}
-                              </SelectItem>
-                            );
-                          })}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id="edit-correct_answer"
-                      value={questionForm.correct_answer}
-                      onChange={(e) => setQuestionForm({...questionForm, correct_answer: e.target.value})}
-                      placeholder="Enter correct answer"
-                    />
-                  )}
+                  <Label htmlFor="edit-bloom_taxonomy">Bloom&apos;s Taxonomy</Label>
+                  <Select value={questionForm.bloom_taxonomy} onValueChange={(value) => setQuestionForm({...questionForm, bloom_taxonomy: value})}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Select level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="remember">Remember</SelectItem>
+                      <SelectItem value="understand">Understand</SelectItem>
+                      <SelectItem value="apply">Apply</SelectItem>
+                      <SelectItem value="analyze">Analyze</SelectItem>
+                      <SelectItem value="evaluate">Evaluate</SelectItem>
+                      <SelectItem value="create">Create</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit-learning_outcome">Learning Outcome</Label>
-                    <Input
-                      id="edit-learning_outcome"
-                      value={questionForm.learning_outcome}
-                      onChange={(e) => setQuestionForm({...questionForm, learning_outcome: e.target.value})}
-                      placeholder="Optional"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-bloom_taxonomy">Blooms Taxonomy</Label>
-                    <Select value={questionForm.bloom_taxonomy} onValueChange={(value) => setQuestionForm({...questionForm, bloom_taxonomy: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="remember">Remember</SelectItem>
-                        <SelectItem value="understand">Understand</SelectItem>
-                        <SelectItem value="apply">Apply</SelectItem>
-                        <SelectItem value="analyze">Analyze</SelectItem>
-                        <SelectItem value="evaluate">Evaluate</SelectItem>
-                        <SelectItem value="create">Create</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="edit-image_url">Image URL</Label>
-                  <Input
-                    id="edit-image_url"
-                    value={questionForm.image_url}
-                    onChange={(e) => setQuestionForm({...questionForm, image_url: e.target.value})}
-                    placeholder="Optional image URL"
-                  />
-                </div>
-              </form>
-            </div>
-            <DrawerFooter>
-              <div className="flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit" onClick={handleEdit}>
-                  Update Question
-                </Button>
               </div>
-            </DrawerFooter>
+
+              <DrawerFooter className="border-t flex-shrink-0 bg-white dark:bg-gray-900">
+                <div className="flex justify-end gap-3">
+                  <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                    Update Question
+                  </Button>
+                </div>
+              </DrawerFooter>
+            </form>
           </DrawerContent>
         </Drawer>
     </SidebarProvider>

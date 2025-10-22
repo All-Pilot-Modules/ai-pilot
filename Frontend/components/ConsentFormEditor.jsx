@@ -41,31 +41,30 @@ export default function ConsentFormEditor({ moduleId, initialConsentText, initia
     setSaveStatus(null);
 
     try {
-      console.log('Saving consent form:', {
-        moduleId,
-        consent_form_text: consentText.substring(0, 100) + '...',
-        consent_required: consentRequired
-      });
-
       const response = await apiClient.put(`/api/modules/${moduleId}/consent-form`, {
         consent_form_text: consentText,
         consent_required: consentRequired
       });
 
-      console.log('Consent form saved successfully:', response);
       setSaveStatus({ type: 'success', message: 'Consent form updated successfully!' });
       if (onUpdate) {
         onUpdate(response);
       }
     } catch (error) {
       console.error('Failed to update consent form:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
 
-      const errorMessage = error.response?.data?.detail || error.message || 'Failed to save consent form. Please try again.';
+      let errorMessage = 'Failed to save consent form. Please try again.';
+
+      if (error.response?.status === 404) {
+        errorMessage = 'Module not found. Please refresh the page.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error. Please try again in a few moments.';
+      } else if (error.message === 'Network Error' || !error.response) {
+        errorMessage = 'Network connection error. Please check your internet connection.';
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
+
       setSaveStatus({ type: 'error', message: errorMessage });
     } finally {
       setIsSaving(false);

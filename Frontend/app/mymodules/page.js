@@ -13,6 +13,7 @@ import { useState, useEffect } from "react";
 import { apiClient } from "@/lib/auth";
 import AssignmentFeaturesSelector from "@/components/AssignmentFeaturesSelector";
 import RubricQuickSelector from "@/components/rubric/RubricQuickSelector";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
 
 export default function MyModules() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -185,7 +186,11 @@ export default function MyModules() {
   };
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <LoadingSpinner size="large" text="Loading modules..." />
+      </div>
+    );
   }
 
   if (!isAuthenticated) {

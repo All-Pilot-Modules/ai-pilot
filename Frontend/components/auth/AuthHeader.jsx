@@ -28,22 +28,22 @@ export default function AuthHeader() {
   }
 
   return (
-    <header className="flex justify-between items-center p-4 gap-4 h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+    <header className="flex justify-between items-center px-3 sm:px-4 py-3 gap-2 sm:gap-4 h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
       {/* Logo */}
-      <Link href="/" className="flex items-center gap-2 font-bold text-xl text-gray-900 dark:text-white">
-        <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+      <Link href="/" className="flex items-center gap-2 font-bold text-lg sm:text-xl text-gray-900 dark:text-white">
+        <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
           <span className="text-white text-sm font-bold">AI</span>
         </div>
-        AI Education Pilot
+        <span className="hidden sm:inline">AI Education Pilot</span>
       </Link>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         {!isAuthenticated ? (
           <>
-            <Button variant="ghost" asChild>
+            <Button variant="ghost" asChild size="sm" className="text-xs sm:text-sm px-2 sm:px-4">
               <Link href="/sign-in">Sign In</Link>
             </Button>
-            <Button asChild>
+            <Button asChild size="sm" className="text-xs sm:text-sm px-3 sm:px-4">
               <Link href="/sign-up">Sign Up</Link>
             </Button>
           </>

@@ -8,7 +8,7 @@ from app.core.config import SUPABASE_URL, SUPABASE_SERVICE_KEY, SUPABASE_STORAGE
 class SupabaseStorageService:
     """Service for handling file operations with Supabase Storage"""
 
-    def __init__(self):
+    def __init__(self, bucket_name: Optional[str] = None):
         print(f"Initializing Supabase storage service...")
         print(f"SUPABASE_URL: {SUPABASE_URL[:30]}..." if SUPABASE_URL else "SUPABASE_URL: None")
         print(f"SUPABASE_SERVICE_KEY: {'SET' if SUPABASE_SERVICE_KEY else 'NOT SET'}")
@@ -19,7 +19,8 @@ class SupabaseStorageService:
 
         try:
             self.client: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-            self.bucket_name = SUPABASE_STORAGE_BUCKET
+            # Use provided bucket_name or default to SUPABASE_STORAGE_BUCKET
+            self.bucket_name = bucket_name if bucket_name else SUPABASE_STORAGE_BUCKET
             print(f"Supabase client created successfully for bucket: {self.bucket_name}")
         except Exception as e:
             print(f"Failed to create Supabase client: {str(e)}")

@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useState, useEffect, Suspense } from "react";
 import { apiClient } from "@/lib/auth";
 import AssignmentFeaturesSelector from "@/components/AssignmentFeaturesSelector";
+import { InlineLoader } from "@/components/LoadingSpinner";
 
 function SettingsPageContent() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -205,9 +206,7 @@ function SettingsPageContent() {
                           </p>
                         </div>
                         {isLoading ? (
-                          <div className="text-center py-8">
-                            <p className="text-muted-foreground">Loading module settings...</p>
-                          </div>
+                          <InlineLoader text="Loading module settings..." />
                         ) : (
                           <AssignmentFeaturesSelector
                             value={formData.assignment_config}

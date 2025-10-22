@@ -1,12 +1,14 @@
 """
 Unified text extractor for multiple file formats
 Supports: PDF, DOCX, PPTX, TXT
+Uses LlamaParse for testbank extraction (AI-powered)
 """
 import os
 from typing import Dict, Any
 import fitz  # PyMuPDF for PDF
 from docx import Document as DocxDocument  # python-docx for DOCX
 from pptx import Presentation  # python-pptx for PPTX
+from llama_parse import LlamaParse
 
 
 def extract_text_from_pdf(file_path: str) -> Dict[str, Any]:
@@ -136,13 +138,67 @@ def extract_text_from_txt(file_path: str) -> Dict[str, Any]:
     }
 
 
-def extract_text_from_file(file_path: str, file_type: str) -> Dict[str, Any]:
+def extract_text_with_llamaparse(file_path: str, file_type: str) -> Dict[str, Any]:
+    """
+    Extract text using LlamaParse AI-powered extraction
+    Handles complex layouts, tables, multi-column formats, and scanned PDFs
+
+    Args:
+        file_path: Path to PDF or DOCX file
+        file_type: File extension (pdf or docx)
+
+    Returns:
+        {
+            'text': str,
+            'metadata': {
+                'pages': int,
+                'extraction_method': 'llamaparse'
+            }
+        }
+
+    Raises:
+        Exception: If LlamaParse extraction fails
+    """
+    try:
+        # Get API key from environment
+        api_key = os.getenv('LLAMA_CLOUD_API_KEY')
+        if not api_key:
+            raise ValueError("LLAMA_CLOUD_API_KEY not found in environment variables")
+
+        # Initialize LlamaParse
+        parser = LlamaParse(
+            api_key=api_key,
+            result_type="text",  # Return plain text
+            verbose=False
+        )
+
+        # Parse the document
+        documents = parser.load_data(file_path)
+
+        # Combine all pages/sections into single text
+        full_text = "\n\n".join([doc.text for doc in documents])
+
+        return {
+            'text': full_text.strip(),
+            'metadata': {
+                'pages': len(documents),
+                'extraction_method': 'llamaparse'
+            }
+        }
+
+    except Exception as e:
+        print(f"LlamaParse extraction failed: {str(e)}")
+        raise
+
+
+def extract_text_from_file(file_path: str, file_type: str, is_testbank: bool = False) -> Dict[str, Any]:
     """
     Unified text extractor - automatically detects file type
 
     Args:
         file_path: Path to file
         file_type: File extension (pdf, docx, pptx, txt)
+        is_testbank: If True, uses LlamaParse for PDF/DOCX extraction
 
     Returns:
         {
@@ -155,6 +211,16 @@ def extract_text_from_file(file_path: str, file_type: str) -> Dict[str, Any]:
     """
     file_type = file_type.lower()
 
+    # Use LlamaParse for testbank PDFs and DOCX files
+    if is_testbank and file_type in ['pdf', 'docx', 'doc']:
+        try:
+            print(f"Using LlamaParse for testbank extraction: {file_path}")
+            return extract_text_with_llamaparse(file_path, file_type)
+        except Exception as e:
+            print(f"LlamaParse failed, falling back to standard extractor: {str(e)}")
+            # Fall back to standard extractors if LlamaParse fails
+
+    # Standard extractors
     if file_type == 'pdf':
         return extract_text_from_pdf(file_path)
     elif file_type in ['docx', 'doc']:

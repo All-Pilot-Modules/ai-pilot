@@ -14,7 +14,6 @@ from app.schemas.question import QuestionCreate
 from app.crud.document import create_document
 from app.crud.question import bulk_create_questions
 from app.crud.document_chunk import bulk_create_chunks
-from app.utils.pdf_extractor import extract_text_from_pdf
 from app.utils.text_extractor import extract_text_from_file
 from app.utils.text_chunker import chunk_text
 from app.utils.question_parser import parse_testbank_text_to_questions
@@ -111,15 +110,21 @@ def handle_document_upload(
             detail=f"Failed to save document to database: {str(e)}"
         )
 
-    # 🤖 Parse testbank if PDF
-    if is_testbank and file_ext == "pdf":
+    # 🤖 Parse testbank if PDF or DOCX (using LlamaParse)
+    if is_testbank and file_ext in ["pdf", "docx", "doc"]:
         temp_file_path = None
         try:
             # Download file temporarily from Supabase for parsing
             temp_file_path = storage_service.download_file_temporarily(supabase_file_path)
 
-            # Extract text from temporary file
-            extracted_text = extract_text_from_pdf(temp_file_path)
+            # Extract text using LlamaParse for testbanks
+            extracted_data = extract_text_from_file(temp_file_path, file_ext, is_testbank=True)
+            extracted_text = extracted_data['text']
+
+            # Debug: Log extracted text for troubleshooting
+            print(f"📝 Extracted text length: {len(extracted_text)} characters")
+            print(f"📝 First 500 chars: {extracted_text[:500]}")
+
             parsed_questions = parse_testbank_text_to_questions(extracted_text, module.id, document.id)
 
             # Save parsed questions to JSON (upload to Supabase as well)
@@ -254,7 +259,6 @@ def handle_document_upload(
 
 
 def reparse_testbank_document(db: Session, document_id: UUID):
-    from app.utils.pdf_extractor import extract_text_from_pdf
     from app.utils.question_parser import parse_testbank_text_to_questions
     from app.crud.question import bulk_create_questions
     from app.models.document import Document
@@ -269,8 +273,8 @@ def reparse_testbank_document(db: Session, document_id: UUID):
     if not doc.is_testbank:
         raise HTTPException(status_code=400, detail="This document is not a testbank and cannot be re-parsed.")
 
-    if not doc.file_type.lower().endswith("pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF testbanks can be parsed")
+    if doc.file_type.lower() not in ["pdf", "docx", "doc"]:
+        raise HTTPException(status_code=400, detail="Only PDF and DOCX testbanks can be parsed")
 
     # Extract file path from storage URL for Supabase
     # storage_path now contains Supabase URL, need to get the path
@@ -287,7 +291,14 @@ def reparse_testbank_document(db: Session, document_id: UUID):
         temp_file_path = storage_service.download_file_temporarily(supabase_file_path)
 
         try:
-            extracted_text = extract_text_from_pdf(temp_file_path)
+            # Extract text using LlamaParse for testbanks
+            extracted_data = extract_text_from_file(temp_file_path, doc.file_type, is_testbank=True)
+            extracted_text = extracted_data['text']
+
+            # Debug: Log extracted text for troubleshooting
+            print(f"📝 Extracted text length: {len(extracted_text)} characters")
+            print(f"📝 First 500 chars: {extracted_text[:500]}")
+
             parsed_questions = parse_testbank_text_to_questions(extracted_text, module.id, doc.id)
 
             # Save parsed questions JSON to Supabase

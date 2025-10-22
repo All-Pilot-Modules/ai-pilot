@@ -20,6 +20,16 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Upload, FolderOpen, File, FileText, FileVideo, Image, Archive, Calendar, Edit3, Trash2, Download, Search, BookOpen, FileCheck, Clock, HardDrive, TrendingUp, Eye, Share2, ChevronRight, Plus, X, CheckCircle2, Loader2, AlertCircle, Database } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/auth";
@@ -43,6 +53,8 @@ function DocumentsContent() {
   const [filterCategory, setFilterCategory] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [uploadForm, setUploadForm] = useState({ title: "", file: null });
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState(null);
 
   // Load module and documents
   useEffect(() => {
@@ -211,17 +223,35 @@ function DocumentsContent() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Are you sure you want to delete this document?")) return;
+  const handleDelete = (doc) => {
+    // Check if it's a testbank - if so, show custom dialog
+    if (doc.is_testbank) {
+      setDocumentToDelete(doc);
+      setDeleteDialogOpen(true);
+    } else {
+      // For regular documents, use simple confirmation
+      if (!confirm("Are you sure you want to delete this document?")) return;
+      executeDelete(doc.id, false);
+    }
+  };
 
+  const executeDelete = async (id, deleteQuestions) => {
     try {
       setIsDeleting(id);
-      await apiClient.delete(`/api/documents/${id}`);
+      setDeleteDialogOpen(false);
+
+      // Add query parameter if deleteQuestions is true
+      const url = deleteQuestions
+        ? `/api/documents/${id}?delete_questions=true`
+        : `/api/documents/${id}`;
+
+      await apiClient.delete(url);
       setDocuments(docs => docs.filter(d => d.id !== id));
     } catch (error) {
       console.error("Delete error:", error);
     } finally {
       setIsDeleting(null);
+      setDocumentToDelete(null);
     }
   };
 
@@ -692,7 +722,7 @@ function DocumentsContent() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleDelete(doc.id)}
+                              onClick={() => handleDelete(doc)}
                               disabled={isDeleting === doc.id}
                               className="hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400"
                             >
@@ -806,6 +836,49 @@ function DocumentsContent() {
                 </DrawerFooter>
               </DrawerContent>
             </Drawer>
+
+            {/* Delete Testbank Confirmation Dialog */}
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Testbank</AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-3">
+                    <p>
+                      You are about to delete the testbank: <strong>{documentToDelete?.title || documentToDelete?.file_name}</strong>
+                    </p>
+                    <p className="text-sm">
+                      Would you like to also delete all the questions generated from this testbank?
+                    </p>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                  <AlertDialogCancel
+                    onClick={() => {
+                      setDeleteDialogOpen(false);
+                      setDocumentToDelete(null);
+                    }}
+                  >
+                    Cancel
+                  </AlertDialogCancel>
+                  <Button
+                    variant="outline"
+                    onClick={() => executeDelete(documentToDelete?.id, false)}
+                    className="sm:flex-1"
+                  >
+                    <FileCheck className="w-4 h-4 mr-2" />
+                    Keep Questions
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => executeDelete(documentToDelete?.id, true)}
+                    className="sm:flex-1"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete All
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </SidebarInset>

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Brain, User, MessageSquare, Send } from "lucide-react";
 import { apiClient } from "@/lib/auth";
 
+
 export default function ChatTab({ moduleId, moduleAccess }) {
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
@@ -91,6 +92,14 @@ export default function ChatTab({ moduleId, moduleAccess }) {
     setInputMessage("");
     setIsSending(true);
 
+    // Immediately add student message to UI (optimistic update)
+    const tempStudentMsg = {
+      role: "student",
+      content: message,
+      created_at: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, tempStudentMsg]);
+
     try {
       let convId = currentConversationId;
 
@@ -99,26 +108,28 @@ export default function ChatTab({ moduleId, moduleAccess }) {
         convId = await createNewConversation(message);
         if (!convId) {
           setIsSending(false);
+          // Remove the optimistic message if conversation creation fails
+          setMessages(prev => prev.slice(0, -1));
           return;
         }
       }
 
       // Send message and get AI response
+      console.log('📤 Sending to AI:', {
+        conversationId: convId,
+        message: message,
+        endpoint: `/api/chat/conversations/${convId}/message`
+      });
+
       const response = await apiClient.post(`/api/chat/conversations/${convId}/message`, {
         message: message
       });
 
       const result = response?.data || response;
+      console.log('📥 AI Response:', result);
 
-      // Add both messages to the UI
-      setMessages(prev => [
-        ...prev,
-        result.student_message,
-        result.assistant_message
-      ]);
-
-      // Reload conversations to update preview
-      loadConversations();
+      // Add AI response to the UI
+      setMessages(prev => [...prev, result.assistant_message]);
 
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -168,6 +179,7 @@ export default function ChatTab({ moduleId, moduleAccess }) {
 
   return (
     <Card className="h-[700px] flex flex-col">
+     
       <CardHeader className="border-b bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/20 dark:to-blue-950/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -179,19 +191,6 @@ export default function ChatTab({ moduleId, moduleAccess }) {
               <CardDescription>Ask me anything about the course materials</CardDescription>
             </div>
           </div>
-
-          {currentConversationId && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setCurrentConversationId(null);
-                setMessages([]);
-              }}
-            >
-              New Chat
-            </Button>
-          )}
         </div>
       </CardHeader>
 

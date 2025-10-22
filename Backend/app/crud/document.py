@@ -61,7 +61,7 @@ def update_document(db: Session, document_id: str, update_data: DocumentUpdate) 
     return doc
 
 
-def delete_document(db: Session, document_id: str) -> Optional[Document]:
+def delete_document(db: Session, document_id: str, delete_questions: bool = False) -> Optional[Document]:
     doc = db.query(Document).filter(Document.id == document_id).first()
     if not doc:
         return None
@@ -83,6 +83,29 @@ def delete_document(db: Session, document_id: str) -> Optional[Document]:
                 print(f"[WARNING] Failed to delete file from Supabase: {supabase_file_path}")
         except Exception as e:
             print(f"[WARNING] Error deleting file from Supabase: {e}")
+
+        # 🧹 Delete parsed_questions.json if this is a testbank and questions should be deleted
+        if doc.is_testbank and delete_questions:
+            try:
+                parsed_json_path = f"{doc.teacher_id}/{module.name}/parsed_questions.json"
+                success = storage_service.delete_file(parsed_json_path)
+                if success:
+                    print(f"✅ Deleted parsed questions JSON: {parsed_json_path}")
+                else:
+                    print(f"[INFO] No parsed_questions.json found to delete")
+            except Exception as e:
+                print(f"[WARNING] Error deleting parsed_questions.json: {e}")
+
+    # 🧹 Delete questions from database if this is a testbank and delete_questions is True
+    if doc.is_testbank and delete_questions:
+        try:
+            from app.models.question import Question
+            deleted_count = db.query(Question).filter(Question.document_id == document_id).delete()
+            db.commit()
+            print(f"✅ Deleted {deleted_count} questions from database")
+        except Exception as e:
+            print(f"[WARNING] Error deleting questions from database: {e}")
+            db.rollback()
 
     # 🧹 Try to delete local file if it exists (legacy support)
     try:

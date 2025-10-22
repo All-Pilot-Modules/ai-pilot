@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { apiClient } from '@/lib/auth';
 import ConsentFormEditor from '@/components/ConsentFormEditor';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 export default function ModuleConsentPage() {
   const params = useParams();
@@ -25,7 +26,17 @@ export default function ModuleConsentPage() {
       setModule(data);
     } catch (err) {
       console.error('Failed to load module:', err);
-      setError('Failed to load module. Please try again.');
+
+      let errorMessage = 'Failed to load module. Please try again.';
+      if (err.response?.status === 404) {
+        errorMessage = 'Module not found. It may have been deleted.';
+      } else if (err.response?.status === 500) {
+        errorMessage = 'Server error. Please try again in a few moments.';
+      } else if (err.message === 'Network Error' || !err.response) {
+        errorMessage = 'Network connection error. Please check your internet connection.';
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -45,10 +56,7 @@ export default function ModuleConsentPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex items-center gap-2">
-          <Loader2 className="w-6 h-6 animate-spin" />
-          <span>Loading module...</span>
-        </div>
+        <LoadingSpinner size="large" text="Loading module..." />
       </div>
     );
   }

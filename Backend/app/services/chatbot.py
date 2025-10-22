@@ -70,8 +70,17 @@ def get_chatbot_response(
             "content": msg.content
         })
 
-    # Build system prompt
-    system_prompt = f"""You are a helpful AI tutor for the course module: "{module_name}".
+    # Build system prompt - use teacher's custom instructions if available
+    if module.chatbot_instructions and module.chatbot_instructions.strip():
+        # Teacher has customized the chatbot behavior
+        system_prompt = f"""You are an AI tutor for the course module: "{module_name}".
+
+{module.chatbot_instructions}
+
+IMPORTANT: Always use the course materials provided below to answer questions accurately."""
+    else:
+        # Default instructions
+        system_prompt = f"""You are a helpful AI tutor for the course module: "{module_name}".
 
 Your role is to:
 - Help students understand course concepts
@@ -97,6 +106,36 @@ Guidelines:
         {"role": "user", "content": student_question}
     ]
 
+    # 🔍 LOG THE PROMPT BEING SENT TO AI
+    print("\n" + "="*80)
+    print("🤖 AI CHATBOT REQUEST")
+    print("="*80)
+    print(f"📚 Module: {module_name}")
+    print(f"🔧 Model: {ai_model}")
+    print(f"👤 Student Question: {student_question}")
+    print(f"\n📝 SYSTEM PROMPT:")
+    print("-" * 80)
+    print(system_prompt)
+    print("-" * 80)
+    if rag_context['has_context']:
+        print(f"\n📚 RAG CONTEXT ({len(rag_context['chunks'])} chunks):")
+        for i, chunk in enumerate(rag_context['chunks'], 1):
+            print(f"  {i}. [{chunk.get('document_title', 'Unknown')}] (similarity: {chunk['similarity']:.3f})")
+            print(f"     {chunk['text'][:150]}...")
+    else:
+        print("\n⚠️  No RAG context found")
+
+    if history_messages:
+        print(f"\n💬 CONVERSATION HISTORY ({len(history_messages)} messages):")
+        for msg in history_messages:
+            role_emoji = "👤" if msg["role"] == "user" else "🤖"
+            print(f"  {role_emoji} {msg['role']}: {msg['content'][:100]}...")
+
+    print("\n📤 FULL MESSAGES ARRAY SENT TO OPENAI:")
+    for i, msg in enumerate(messages, 1):
+        print(f"  [{i}] {msg['role']}: {msg['content'][:200]}...")
+    print("="*80 + "\n")
+
     # Call OpenAI API
     try:
         openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -109,6 +148,11 @@ Guidelines:
         )
 
         ai_response = response.choices[0].message.content
+
+        # 🔍 LOG THE AI RESPONSE
+        print("✅ AI RESPONSE RECEIVED:")
+        print(f"{ai_response}")
+        print("="*80 + "\n")
 
         # Prepare context metadata
         context_metadata = None

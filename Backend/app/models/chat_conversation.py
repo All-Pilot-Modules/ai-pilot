@@ -10,7 +10,7 @@ class ChatConversation(Base):
     __tablename__ = "chat_conversations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    student_id = Column(String, ForeignKey("users.id"), nullable=False)
+    student_id = Column(String, nullable=False)  # Banner ID - no foreign key (matches student_enrollments pattern)
     module_id = Column(UUID(as_uuid=True), ForeignKey("modules.id"), nullable=False)
     title = Column(String, nullable=False)  # Auto-generated from first message
     created_at = Column(TIMESTAMP, default=datetime.utcnow, nullable=False)

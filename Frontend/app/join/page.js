@@ -85,18 +85,12 @@ export default function JoinModule() {
       sessionStorage.setItem('student_module_access', JSON.stringify(accessData));
 
       // Check if module requires consent
-      console.log('Module data:', module);
-      console.log('Consent required?', module.consent_required);
-      console.log('Consent form text:', module.consent_form_text);
-
       if (module.consent_required !== false) {
         // Show consent modal
-        console.log('Showing consent modal');
         setEnrolledModule(module);
         setShowConsentModal(true);
       } else {
         // No consent required, redirect immediately
-        console.log('Consent not required, redirecting');
         setTimeout(() => {
           router.push(`/student/module/${module.id}`);
         }, 1500);
@@ -104,7 +98,19 @@ export default function JoinModule() {
 
     } catch (error) {
       console.error('Join module error:', error);
-      setError(error.message || 'Failed to join module. Please try again.');
+
+      // Provide user-friendly error messages
+      if (error.response?.status === 404) {
+        setError('Invalid access code. Please check with your instructor.');
+      } else if (error.response?.status === 400) {
+        setError('This module is not currently active. Please contact your instructor.');
+      } else if (error.response?.status === 500) {
+        setError('Server error. Please try again in a few moments.');
+      } else if (error.message === 'Network Error' || !error.response) {
+        setError('Network connection error. Please check your internet connection.');
+      } else {
+        setError(error.response?.data?.detail || error.message || 'Failed to join module. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -211,25 +217,16 @@ export default function JoinModule() {
       </div>
 
       {/* Consent Modal */}
-      {showConsentModal && enrolledModule ? (
-        <>
-          {console.log('Rendering consent modal with:', {
-            isOpen: showConsentModal,
-            moduleId: enrolledModule.id,
-            moduleName: enrolledModule.name,
-            consentFormText: enrolledModule.consent_form_text,
-            studentId: formData.bannerId.trim()
-          })}
-          <ModuleConsentModal
-            isOpen={showConsentModal}
-            moduleId={enrolledModule.id}
-            moduleName={enrolledModule.name}
-            consentFormText={enrolledModule.consent_form_text}
-            studentId={formData.bannerId.trim()}
-            onConsentSubmitted={handleConsentSubmitted}
-          />
-        </>
-      ) : null}
+      {showConsentModal && enrolledModule && (
+        <ModuleConsentModal
+          isOpen={showConsentModal}
+          moduleId={enrolledModule.id}
+          moduleName={enrolledModule.name}
+          consentFormText={enrolledModule.consent_form_text}
+          studentId={formData.bannerId.trim()}
+          onConsentSubmitted={handleConsentSubmitted}
+        />
+      )}
     </div>
   );
 }

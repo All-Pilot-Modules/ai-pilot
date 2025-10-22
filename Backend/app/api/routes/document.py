@@ -64,10 +64,11 @@ def get_document(
 # ❌ Delete document
 @router.delete("/documents/{doc_id}")
 def delete_document_by_id(
-    doc_id: str, 
+    doc_id: str,
+    delete_questions: bool = Query(False, description="If true, also delete generated questions (for testbanks)"),
     db: Session = Depends(get_db)
 ):
-    deleted_doc = delete_document(db, doc_id)
+    deleted_doc = delete_document(db, doc_id, delete_questions=delete_questions)
     if not deleted_doc:
         raise HTTPException(status_code=404, detail="Document not found")
     return {"detail": "Document deleted successfully."}

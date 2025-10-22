@@ -49,6 +49,9 @@ class Module(Base):
     consent_form_text = Column(Text, nullable=True, default=DEFAULT_CONSENT_FORM)
     consent_required = Column(Boolean, default=True)  # Whether students must fill consent before accessing
 
+    # Chatbot custom instructions (teacher-defined response style and behavior)
+    chatbot_instructions = Column(Text, nullable=True)
+
     # Dedicated column for feedback rubric configuration (easier to query and manage)
     feedback_rubric = Column(JSONB, nullable=True)
 

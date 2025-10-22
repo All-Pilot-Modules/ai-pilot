@@ -25,6 +25,7 @@ import {
   BookOpen
 } from "lucide-react";
 import { apiClient } from "@/lib/auth";
+import { FullPageLoader } from "@/components/LoadingSpinner";
 
 export default function StudentTestPage() {
   const params = useParams();
@@ -156,8 +157,22 @@ export default function StudentTestPage() {
       setAttempts(attemptNumbers);
 
     } catch (error) {
-      console.error('Failed to load test:', error.message || error);
-      setError(error.message || 'Failed to load test. Please try again.');
+      console.error('Failed to load test:', error);
+
+      let errorMessage = 'Failed to load test. Please try again.';
+      if (error.response?.status === 404) {
+        errorMessage = 'Test not found. Please contact your instructor.';
+      } else if (error.response?.status === 403) {
+        errorMessage = 'Access denied. Please check your access code.';
+      } else if (error.response?.status === 500) {
+        errorMessage = 'Server error. Please try again in a few moments.';
+      } else if (error.message === 'Network Error' || !error.response) {
+        errorMessage = 'Network connection error. Please check your internet connection.';
+      } else if (error.response?.data?.detail) {
+        errorMessage = error.response.data.detail;
+      }
+
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -356,15 +371,7 @@ export default function StudentTestPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading test questions...</p>
-          <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">This may take a few moments</p>
-        </div>
-      </div>
-    );
+    return <FullPageLoader text="Loading test questions..." />;
   }
 
   if (questions.length === 0) {
@@ -544,11 +551,12 @@ export default function StudentTestPage() {
 
                   {/* Question Image */}
                   {currentQ?.image_url && (
-                    <div className="border rounded-lg overflow-hidden">
-                      <img 
-                        src={currentQ.image_url} 
-                        alt="Question illustration" 
-                        className="w-full max-w-md mx-auto"
+                    <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                      <img
+                        src={currentQ.image_url}
+                        alt="Question illustration"
+                        className="w-full max-w-2xl mx-auto rounded-lg shadow-sm object-contain"
+                        style={{ maxHeight: '400px' }}
                       />
                     </div>
                   )}

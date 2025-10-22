@@ -37,13 +37,13 @@ import {
   Star,
   Sparkles,
   CheckCircle,
-  XCircle
+  XCircle,
+  Brain
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { apiClient } from "@/lib/auth";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { FullPageLoader } from "@/components/LoadingSpinner";
 
 function DashboardContent() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -54,21 +54,7 @@ function DashboardContent() {
     accessCode: "",
     totalStudents: 24,
     activeTests: 3,
-    completedTests: 12,
-    weeklyData: [
-      { day: "Mon", students: 18, tests: 2 },
-      { day: "Tue", students: 22, tests: 4 },
-      { day: "Wed", students: 20, tests: 3 },
-      { day: "Thu", students: 24, tests: 5 },
-      { day: "Fri", students: 19, tests: 3 },
-      { day: "Sat", students: 15, tests: 1 },
-      { day: "Sun", students: 12, tests: 1 }
-    ],
-    testResults: [
-      { name: "Passed", value: 85, color: "#22c55e" },
-      { name: "Failed", value: 10, color: "#ef4444" },
-      { name: "Pending", value: 5, color: "#f59e0b" }
-    ]
+    completedTests: 12
   });
   
   const [copiedItems, setCopiedItems] = useState({});
@@ -78,9 +64,23 @@ function DashboardContent() {
   const loadRubricSummary = useCallback(async (id) => {
     try {
       const data = await apiClient.get(`/api/modules/${id}/rubric`);
+      console.log('📊 Rubric data loaded:', data);
       setRubricSummary(data);
     } catch (error) {
       console.error('Failed to load rubric:', error);
+      // Set default values if rubric doesn't exist
+      setRubricSummary({
+        rubric: {
+          feedback_style: {
+            tone: 'encouraging',
+            detail_level: 'detailed'
+          },
+          rag_settings: {
+            enabled: true
+          },
+          custom_instructions: null
+        }
+      });
     }
   }, []);
 
@@ -155,27 +155,52 @@ function DashboardContent() {
   const isMainDashboard = pathname === '/dashboard' || (!pathname.includes('/dashboard/') && pathname.includes('/dashboard'));
 
   if (loading) {
-    return <div className="p-8">Loading...</div>;
+    return <FullPageLoader text="Loading dashboard..." />;
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="p-8 text-center">
-        <h1 className="text-xl mb-4">Access Denied</h1>
-        <Button asChild>
-          <Link href="/sign-in">Sign In</Link>
-        </Button>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border border-gray-200 dark:border-gray-800 shadow-lg">
+          <CardContent className="pt-12 pb-8 px-8 text-center">
+            <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Shield className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h1>
+            <p className="text-gray-600 dark:text-gray-400 mb-8">
+              You need to be signed in to access the dashboard.
+            </p>
+            <Button asChild size="lg" className="w-full bg-blue-600 hover:bg-blue-700">
+              <Link href="/sign-in">
+                Sign In to Continue
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (!moduleName) {
     return (
-      <div className="p-8 text-center">
-        <h1 className="text-xl mb-4">No Module Selected</h1>
-        <Button asChild>
-          <Link href="/mymodules">Go to My Modules</Link>
-        </Button>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border border-gray-200 dark:border-gray-800 shadow-lg">
+          <CardContent className="pt-12 pb-8 px-8 text-center">
+            <div className="w-20 h-20 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
+              <BookOpen className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No Module Selected</h1>
+            <p className="text-gray-600 dark:text-gray-400 mb-8">
+              Please select a module from your modules list to view the dashboard.
+            </p>
+            <Button asChild size="lg" className="w-full bg-blue-600 hover:bg-blue-700">
+              <Link href="/mymodules">
+                <BookOpen className="w-4 h-4 mr-2" />
+                Go to My Modules
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -190,310 +215,423 @@ function DashboardContent() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <div className="min-h-screen bg-background">
-          <div className="max-w-7xl mx-auto px-6 py-12">
-            {/* Header */}
-            <div className="mb-10">
-              <h1 className="text-2xl font-semibold text-foreground mb-2">Dashboard - {moduleName}</h1>
-              <p className="text-muted-foreground">Manage your module and track student progress</p>
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            {/* Clean Header */}
+            <div className="mb-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-3 bg-blue-600 rounded-lg">
+                      <BookOpen className="w-6 h-6 text-white" />
+                    </div>
+                    <div>
+                      <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                        {moduleName}
+                      </h1>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2 mt-1">
+                        <Activity className="w-3 h-3" />
+                        Module Dashboard
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Badge variant="outline" className="px-4 py-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    Active
+                  </Badge>
+                </div>
+              </div>
             </div>
-            {/* Top Row: Metrics + Student Access */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
-              {/* Metrics Cards */}
-              <Card className="border-border bg-card/50 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Students</p>
-                      <p className="text-2xl font-bold text-foreground">{moduleData.totalStudents}</p>
+            {/* Professional Stat Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {/* Total Students Card */}
+              <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6 relative">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                      <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <Users className="w-8 h-8 text-muted-foreground" />
+                    <Badge variant="secondary" className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-0 text-xs">
+                      <TrendingUp className="w-3 h-3 mr-1" />
+                      +12%
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Students</p>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{moduleData.totalStudents}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Enrolled this semester</p>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-border bg-card/50 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Active Tests</p>
-                      <p className="text-2xl font-bold text-foreground">{moduleData.activeTests}</p>
+              {/* Active Tests Card */}
+              <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6 relative">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                      <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <FileText className="w-8 h-8 text-muted-foreground" />
+                    <Badge variant="secondary" className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-0 text-xs">
+                      Active
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Active Tests</p>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{moduleData.activeTests}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Available for students</p>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-border bg-card/50 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Completed Tests</p>
-                      <p className="text-2xl font-bold text-foreground">{moduleData.completedTests}</p>
+              {/* Completed Tests Card */}
+              <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6 relative">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                      <Award className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <Award className="w-8 h-8 text-muted-foreground" />
+                    <Badge variant="secondary" className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-0 text-xs">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      80%
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Completed</p>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{moduleData.completedTests}</p>
+
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Submissions received</p>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Student Access - Compact Coupon Style */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg p-4">
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <Share2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    <span className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">Student Access</span>
-                  </div>
-                  <div className="bg-white dark:bg-gray-800 rounded-md px-3 py-2 mb-3 border border-blue-200 dark:border-blue-800">
-                    <div className="font-mono text-xl font-bold text-gray-900 dark:text-gray-100 tracking-widest">
-                      {moduleData.accessCode}
+              {/* Student Access Card - Premium Design */}
+              <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow">
+                <CardContent className="p-6 relative">
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                        <Share2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">Access Code</span>
                     </div>
                   </div>
-                  <div className="space-y-1">
+                  <div className="bg-white dark:bg-gray-900 rounded-lg px-4 py-3 mb-4 border-2 border-blue-200 dark:border-blue-800 shadow-inner">
+                    <div className="font-mono text-2xl font-bold text-blue-900 dark:text-blue-100 tracking-[0.3em] text-center">
+                      {moduleData.accessCode || 'ABC123'}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
                     <Button
                       size="sm"
-                      variant="outline"
                       onClick={() => copyToClipboard(moduleData.accessCode, 'code')}
-                      className="w-full h-7 text-xs border-blue-300 hover:bg-blue-100 dark:border-blue-700 dark:hover:bg-blue-900"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-md h-8"
                     >
                       {copiedItems.code ? (
-                        <Check className="w-3 h-3 text-green-600 mr-1" />
+                        <>
+                          <Check className="w-3 h-3 mr-2" />
+                          Copied!
+                        </>
                       ) : (
-                        <Copy className="w-3 h-3 mr-1" />
+                        <>
+                          <Copy className="w-3 h-3 mr-2" />
+                          Copy Code
+                        </>
                       )}
-                      Copy Code
                     </Button>
-                    <div className="flex gap-1">
+                    <div className="flex gap-2">
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={regenerateAccessCode}
-                        className="flex-1 h-7 text-xs border-blue-300 hover:bg-blue-100 dark:border-blue-700 dark:hover:bg-blue-900"
+                        className="flex-1 h-8 text-xs border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
                         <RotateCcw className="w-3 h-3 mr-1" />
-                        New
+                        Regenerate
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => copyToClipboard(generateModuleUrl(), 'url')}
-                        className="flex-1 h-7 text-xs border-blue-300 hover:bg-blue-100 dark:border-blue-700 dark:hover:bg-blue-900"
+                        className="flex-1 h-8 text-xs border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
                         {copiedItems.url ? (
-                          <Check className="w-3 h-3 text-green-600 mr-1" />
+                          <Check className="w-3 h-3 mr-1 text-blue-600" />
                         ) : (
-                          <ExternalLink className="w-3 h-3 mr-1" />
+                          <Globe className="w-3 h-3 mr-1" />
                         )}
-                        URL
+                        Share
                       </Button>
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Analytics - Full Width */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-              <Card className="lg:col-span-2 border-border bg-card/50 backdrop-blur-sm">
-                <CardHeader>
-                  <CardTitle className="text-lg">Weekly Activity</CardTitle>
-                  <p className="text-sm text-muted-foreground">Student engagement over the last 7 days</p>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <ChartContainer
-                    config={{
-                      students: {
-                        label: "Active Students",
-                        color: "#64748b",
-                      },
-                      tests: {
-                        label: "Tests Completed", 
-                        color: "#475569",
-                      },
-                    }}
-                    className="h-80"
-                  >
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={moduleData.weeklyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                        <XAxis 
-                          dataKey="day" 
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{ fontSize: 12, fill: 'currentColor' }}
-                        />
-                        <YAxis 
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{ fontSize: 12, fill: 'currentColor' }}
-                        />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar 
-                          dataKey="students" 
-                          fill="var(--color-students)" 
-                          radius={[4, 4, 0, 0]}
-                          name="Active Students"
-                        />
-                        <Bar 
-                          dataKey="tests" 
-                          fill="var(--color-tests)" 
-                          radius={[4, 4, 0, 0]}
-                          name="Tests Completed"
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border bg-card/50 backdrop-blur-sm">
-                <CardHeader>
-                  <CardTitle className="text-lg">Test Results</CardTitle>
-                  <p className="text-sm text-muted-foreground">Assessment performance breakdown</p>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <ChartContainer
-                    config={{
-                      passed: {
-                        label: "Passed",
-                        color: "#64748b",
-                      },
-                      failed: {
-                        label: "Failed",
-                        color: "#475569",
-                      },
-                      pending: {
-                        label: "Pending",
-                        color: "#94a3b8",
-                      },
-                    }}
-                    className="h-80"
-                  >
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={moduleData.testResults}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={120}
-                          paddingAngle={2}
-                          dataKey="value"
-                        >
-                          {moduleData.testResults.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </ChartContainer>
                 </CardContent>
               </Card>
             </div>
 
-            {/* AI Feedback Rubric Configuration */}
-            {moduleId && (
-              <Card className="border-border bg-gradient-to-br from-purple-50/50 to-blue-50/50 dark:from-purple-950/20 dark:to-blue-950/20 mb-6">
-                <CardHeader>
+            {/* Recent Activity & Quick Stats */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+              {/* Recent Student Activity */}
+              <Card className="lg:col-span-2 border-0 shadow-xl bg-white dark:bg-gray-900">
+                <CardHeader className="border-b border-gray-100 dark:border-gray-800 pb-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                        AI Feedback Rubric
+                      <CardTitle className="text-xl font-bold flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-blue-600" />
+                        Recent Activity
                       </CardTitle>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Customize how AI generates feedback for student answers
-                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">Latest student submissions and enrollments</p>
                     </div>
-                    <Button asChild>
-                      <Link href={`/dashboard/rubric?moduleId=${moduleId}&moduleName=${encodeURIComponent(moduleName)}`}>
-                        <Settings className="w-4 h-4 mr-2" />
-                        Configure Rubric
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/dashboard/students?module=${moduleName}`}>
+                        View All
                       </Link>
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  {rubricSummary ? (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                      {/* Feedback Tone */}
-                      <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-800/50">
-                        <div className="p-2 rounded-md bg-blue-100 dark:bg-blue-900/30">
-                          <Zap className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <CardContent className="pt-6">
+                  <div className="space-y-4">
+                    {/* Activity Item 1 */}
+                    <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                      <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
+                        <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-gray-100">New test submission</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              Student completed Assignment 1 with 85% score
+                            </p>
+                          </div>
+                          <span className="text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap">2 hrs ago</span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-muted-foreground">Feedback Tone</p>
-                          <p className="text-sm font-medium capitalize truncate">
-                            {rubricSummary.rubric?.feedback_style?.tone || 'Encouraging'}
-                          </p>
+                      </div>
+                    </div>
+
+                    {/* Activity Item 2 */}
+                    <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                      <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
+                        <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-gray-100">New student enrolled</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              3 students joined using access code
+                            </p>
+                          </div>
+                          <span className="text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap">5 hrs ago</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Activity Item 3 */}
+                    <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                      <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
+                        <Brain className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-gray-100">AI feedback generated</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              12 student answers received personalized feedback
+                            </p>
+                          </div>
+                          <span className="text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap">1 day ago</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Activity Item 4 */}
+                    <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                      <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
+                        <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 dark:text-gray-100">Documents uploaded</p>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              Added 2 new study materials to module
+                            </p>
+                          </div>
+                          <span className="text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap">2 days ago</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Quick Module Stats */}
+              <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800">
+                <CardHeader className="border-b border-gray-200 dark:border-gray-700 pb-4">
+                  <div>
+                    <CardTitle className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-white">
+                      <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      Module Stats
+                    </CardTitle>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Key performance indicators</p>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="space-y-6">
+                    {/* Average Score */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Average Score</span>
+                        <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">78%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: '78%' }}></div>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Across all submissions</p>
+                    </div>
+
+                    {/* Completion Rate */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Completion Rate</span>
+                        <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">92%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: '92%' }}></div>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Students who submitted</p>
+                    </div>
+
+                    {/* Engagement Score */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Engagement</span>
+                        <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">85%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: '85%' }}></div>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Active participation rate</p>
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+                          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">45</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Questions</p>
+                        </div>
+                        <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+                          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">127</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Feedbacks</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Configuration Cards Row */}
+            {moduleId && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {/* AI Feedback Rubric Configuration */}
+                <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800">
+                  <CardHeader className="border-b border-gray-200 dark:border-gray-700 pb-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg sm:text-xl font-semibold flex items-center gap-2 sm:gap-3 text-gray-900 dark:text-gray-100">
+                          <div className="p-2 sm:p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
+                            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          AI Feedback Rubric
+                        </CardTitle>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2 ml-9 sm:ml-[52px]">
+                          Customize AI feedback generation
+                        </p>
+                      </div>
+                      <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto">
+                        <Link href={`/dashboard/rubric?moduleId=${moduleId}&moduleName=${encodeURIComponent(moduleName)}`}>
+                          <Settings className="w-4 h-4 mr-2" />
+                          Configure
+                        </Link>
+                      </Button>
+                    </div>
+                  </CardHeader>
+                <CardContent className="relative pt-6">
+                  {rubricSummary ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+                      {/* Feedback Tone */}
+                      <div className="group relative overflow-hidden lg:overflow-visible rounded-lg bg-gray-50 dark:bg-gray-800 p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2.5 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                            <Zap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Feedback Tone</p>
+                            <p className="text-base font-bold capitalize text-gray-900 dark:text-white mt-1">
+                              {rubricSummary.rubric?.feedback_style?.tone || 'Encouraging'}
+                            </p>
+                          </div>
                         </div>
                       </div>
 
                       {/* Detail Level */}
-                      <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-800/50">
-                        <div className="p-2 rounded-md bg-green-100 dark:bg-green-900/30">
-                          <Eye className="w-4 h-4 text-green-600 dark:text-green-400" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-muted-foreground">Detail Level</p>
-                          <p className="text-sm font-medium capitalize truncate">
-                            {rubricSummary.rubric?.feedback_style?.detail_level || 'Detailed'}
-                          </p>
+                      <div className="group relative overflow-hidden rounded-lg bg-gray-50 dark:bg-gray-800 p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2.5 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                            <Eye className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Detail Level</p>
+                            <p className="text-base font-bold capitalize text-gray-900 dark:text-white mt-1">
+                              {rubricSummary.rubric?.feedback_style?.detail_level || 'Detailed'}
+                            </p>
+                          </div>
                         </div>
                       </div>
 
                       {/* RAG Status */}
-                      <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-800/50">
-                        <div className={`p-2 rounded-md ${
-                          rubricSummary.rubric?.rag_settings?.enabled
-                            ? 'bg-emerald-100 dark:bg-emerald-900/30'
-                            : 'bg-gray-100 dark:bg-gray-800'
-                        }`}>
-                          <BookOpen className={`w-4 h-4 ${
-                            rubricSummary.rubric?.rag_settings?.enabled
-                              ? 'text-emerald-600 dark:text-emerald-400'
-                              : 'text-gray-400'
-                          }`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-muted-foreground">RAG Retrieval</p>
-                          <p className="text-sm font-medium">
-                            {rubricSummary.rubric?.rag_settings?.enabled ? (
-                              <Badge variant="default" className="text-xs">
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                Enabled
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">
-                                <XCircle className="w-3 h-3 mr-1" />
-                                Disabled
-                              </Badge>
-                            )}
-                          </p>
+                      <div className="group relative overflow-hidden rounded-lg bg-gray-50 dark:bg-gray-800 p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2.5 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                            <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">RAG Retrieval</p>
+                            <div className="mt-1">
+                              {rubricSummary.rubric?.rag_settings?.enabled ? (
+                                <Badge className="bg-blue-600 text-white border-0">
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Enabled
+                                </Badge>
+                              ) : (
+                                <Badge variant="secondary" className="bg-gray-300 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                                  <XCircle className="w-3 h-3 mr-1" />
+                                  Disabled
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
 
                       {/* Custom Instructions */}
-                      <div className="flex items-start gap-3 p-3 rounded-lg bg-white/50 dark:bg-gray-800/50">
-                        <div className={`p-2 rounded-md ${
-                          rubricSummary.rubric?.custom_instructions
-                            ? 'bg-orange-100 dark:bg-orange-900/30'
-                            : 'bg-gray-100 dark:bg-gray-800'
-                        }`}>
-                          <FileText className={`w-4 h-4 ${
-                            rubricSummary.rubric?.custom_instructions
-                              ? 'text-orange-600 dark:text-orange-400'
-                              : 'text-gray-400'
-                          }`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-muted-foreground">Instructions</p>
-                          <p className="text-sm font-medium">
-                            {rubricSummary.rubric?.custom_instructions ? (
-                              <Badge variant="default" className="text-xs">Configured</Badge>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">Not set</span>
-                            )}
-                          </p>
+                      <div className="group relative overflow-hidden rounded-lg bg-gray-50 dark:bg-gray-800 p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all">
+                        <div className="flex items-start gap-3">
+                          <div className="p-2.5 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                            <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Custom Instructions</p>
+                            <div className="mt-1">
+                              {rubricSummary.rubric?.custom_instructions ? (
+                                <Badge className="bg-blue-600 text-white border-0">Configured</Badge>
+                              ) : (
+                                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Not set</span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -505,40 +643,202 @@ function DashboardContent() {
                   )}
                 </CardContent>
               </Card>
+
+                {/* Consent Form Configuration */}
+                <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800">
+                  <CardHeader className="border-b border-gray-200 dark:border-gray-700 pb-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg sm:text-xl font-semibold flex items-center gap-2 sm:gap-3 text-gray-900 dark:text-gray-100">
+                          <div className="p-2 sm:p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
+                            <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          Research Consent Form
+                        </CardTitle>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2 ml-9 sm:ml-[52px]">
+                          Manage student consent & waiver
+                        </p>
+                      </div>
+                      <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto">
+                        <Link href={`/module/${moduleId}/consent`}>
+                          <FileText className="w-4 h-4 mr-2" />
+                          Edit Form
+                        </Link>
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="relative pt-6">
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                          <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Consent Required</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Students must complete the consent form before accessing module content
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        <div className="p-2.5 bg-blue-500/20 dark:bg-blue-500/30 rounded-lg">
+                          <Eye className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Customizable Content</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Edit form text, toggle consent requirement, and preview changes in real-time
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                          <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Track Responses</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Monitor student consent status and view response analytics
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* AI Chatbot Settings Card */}
+                <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 lg:col-span-2">
+                  <CardHeader className="border-b border-gray-200 dark:border-gray-700 pb-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg sm:text-xl font-semibold flex items-center gap-2 sm:gap-3 text-gray-900 dark:text-gray-100">
+                          <div className="p-2 sm:p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
+                            <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          AI Chatbot Settings
+                        </CardTitle>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2 ml-9 sm:ml-[52px]">
+                          Customize how the AI tutor responds to students
+                        </p>
+                      </div>
+                      <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto">
+                        <Link href={`/dashboard/chatbot-settings?module=${moduleId}`}>
+                          <Settings className="w-4 h-4 mr-2" />
+                          Configure
+                        </Link>
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="relative pt-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {/* Chatbot Status */}
+                      <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                          <Brain className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Response Style</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Define chatbot tone, teaching approach, and conversation style
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Custom Instructions */}
+                      <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                          <Sparkles className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Custom Instructions</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Add specific guidelines for how the chatbot should interact with students
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* RAG Integration */}
+                      <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        <div className="p-2.5 bg-blue-500/20 dark:bg-blue-500/30 rounded-lg">
+                          <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Course Material Based</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Chatbot uses your uploaded documents to answer student questions
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
-            {/* Quick Actions */}
-            <Card className="border-border bg-card/50 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">Management</CardTitle>
-                <p className="text-sm text-muted-foreground">Quick access to module management tools</p>
+            {/* Quick Actions - Management Grid */}
+            <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800">
+              <CardHeader className="border-b border-gray-200 dark:border-gray-700 pb-6">
+                <div>
+                  <CardTitle className="text-xl font-semibold flex items-center gap-3 text-gray-900 dark:text-white">
+                    <div className="p-2.5 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                      <Settings className="w-5 h-5 text-gray-700 dark:text-gray-300" />
+                    </div>
+                    Management Center
+                  </CardTitle>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-2 ml-[52px]">Quick access to module management tools</p>
+                </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Button asChild variant="outline" className="h-20 flex flex-col gap-2">
-                    <Link href={`/dashboard/students?module=${moduleName}`}>
-                      <Users className="w-6 h-6" />
-                      <span className="text-sm">Students</span>
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline" className="h-20 flex flex-col gap-2">
-                    <Link href={`/dashboard/tests?module=${moduleName}`}>
-                      <FileText className="w-6 h-6" />
-                      <span className="text-sm">Tests</span>
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline" className="h-20 flex flex-col gap-2">
-                    <Link href={`/dashboard/analytics?module=${moduleName}`}>
-                      <BarChart3 className="w-6 h-6" />
-                      <span className="text-sm">Analytics</span>
-                    </Link>
-                  </Button>
-                  <Button asChild variant="outline" className="h-20 flex flex-col gap-2">
-                    <Link href={`/dashboard/settings?module=${moduleName}`}>
-                      <Settings className="w-6 h-6" />
-                      <span className="text-sm">Settings</span>
-                    </Link>
-                  </Button>
+                  <Link href={`/dashboard/students?module=${moduleName}`} className="group">
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all cursor-pointer">
+                      <div className="flex flex-col items-center text-center gap-3">
+                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                          <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Students</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-400">Manage enrollments</span>
+                      </div>
+                    </div>
+                  </Link>
+
+                  <Link href={`/dashboard/tests?module=${moduleName}`} className="group">
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all cursor-pointer">
+                      <div className="flex flex-col items-center text-center gap-3">
+                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                          <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Tests</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-400">Create & manage</span>
+                      </div>
+                    </div>
+                  </Link>
+
+                  <Link href={`/dashboard/analytics?module=${moduleName}`} className="group">
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all cursor-pointer">
+                      <div className="flex flex-col items-center text-center gap-3">
+                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                          <BarChart3 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Analytics</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-400">View insights</span>
+                      </div>
+                    </div>
+                  </Link>
+
+                  <Link href={`/dashboard/settings?module=${moduleName}`} className="group">
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 hover:border-blue-500 dark:hover:border-blue-500 hover:shadow-md transition-all cursor-pointer">
+                      <div className="flex flex-col items-center text-center gap-3">
+                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                          <Settings className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Settings</span>
+                        <span className="text-xs text-gray-600 dark:text-gray-400">Configure module</span>
+                      </div>
+                    </div>
+                  </Link>
                 </div>
               </CardContent>
             </Card>
@@ -551,14 +851,7 @@ function DashboardContent() {
 
 export default function Dashboard() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading dashboard...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<FullPageLoader text="Loading dashboard..." />}>
       <DashboardContent />
     </Suspense>
   );
