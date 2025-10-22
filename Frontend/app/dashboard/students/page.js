@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Search, Users, AlertCircle, X, Calendar, Clock, Award, BookOpen, TrendingUp, User, Edit, Trash2, MoreHorizontal, UserPlus, Mail, Phone, MapPin, Save, CheckCircle, XCircle, HelpCircle, List, ExternalLink, Filter, SortAsc, SortDesc, Download, FileText, FileJson, GraduationCap, Target, BarChart3, Activity, Zap } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { apiClient } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
@@ -31,12 +31,148 @@ function StudentsPageContent() {
   const [moduleData, setModuleData] = useState(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
+  // Define fetchModuleData first before using it
+  const fetchModuleData = useCallback(async () => {
+    try {
+      setLoadingStudents(true);
+      setError('');
+
+      // Get teacher ID from user data
+      const teacherId = user?.id || user?.sub;
+      if (!teacherId) {
+        setError('Unable to identify teacher. Please sign in again.');
+        setLoadingStudents(false);
+        return;
+      }
+
+      // First, get the module ID from module name
+      const modulesResponse = await apiClient.get(`/api/modules?teacher_id=${teacherId}`);
+      const modules = modulesResponse.data || modulesResponse;
+      // eslint-disable-next-line @next/next/no-assign-module-variable
+      const module = modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
+
+      if (!module) {
+        setError(`Module "${moduleName}" not found in your modules`);
+        setLoadingStudents(false);
+        return;
+      }
+
+      setModuleData(module);
+
+      // Get questions for this module
+      const questionsResponse = await apiClient.get(`/api/student/modules/${module.id}/questions`);
+      const questions = questionsResponse.data || questionsResponse;
+
+      // Get all students who have submitted answers for this module using the optimized API
+      let realStudents = [];
+      let allModuleAnswers = [];
+
+      try {
+        // Use the dedicated API endpoint to get all student answers for this module
+        const moduleAnswersResponse = await apiClient.get(`/api/student-answers?module_id=${module.id}`);
+        allModuleAnswers = moduleAnswersResponse.data || moduleAnswersResponse || [];
+
+        console.log(`Retrieved ${allModuleAnswers.length} answers for module ${module.name}`);
+
+        if (allModuleAnswers.length > 0) {
+          const studentMap = new Map();
+
+          // Process all answers to extract unique students
+          allModuleAnswers.forEach(answer => {
+            if (answer.student_id) {
+              const studentKey = answer.student_id;
+              if (!studentMap.has(studentKey)) {
+                studentMap.set(studentKey, {
+                  id: answer.student_id,
+                  name: answer.student_id, // Use student_id as name for now
+                  email: answer.student_id, // Student ID might be email or we'll use it as identifier
+                  student_id: answer.student_id,
+                  last_access: answer.submitted_at || new Date().toISOString()
+                });
+              } else {
+                // Update last access if this answer is more recent
+                const existing = studentMap.get(studentKey);
+                if (answer.submitted_at && new Date(answer.submitted_at) > new Date(existing.last_access)) {
+                  existing.last_access = answer.submitted_at;
+                }
+              }
+            }
+          });
+
+          realStudents = Array.from(studentMap.values());
+          console.log(`Found ${realStudents.length} unique students who have started tests in module ${module.name}`);
+        } else {
+          console.log('No student answers found for this module');
+        }
+      } catch (error) {
+        console.error('Error fetching module student answers:', error);
+      }
+
+      // Calculate actual performance for each student using the answers we already have
+      if (realStudents.length > 0 && questions && questions.length > 0 && allModuleAnswers.length > 0) {
+        const studentsWithPerformance = realStudents.map(student => {
+          // Filter answers for this specific student
+          const studentAnswers = allModuleAnswers.filter(answer => answer.student_id === student.student_id);
+
+          // Calculate performance metrics
+          const totalQuestions = questions.length;
+          const answeredQuestions = studentAnswers.length;
+
+          // Calculate correct answers by comparing student answer with correct answer
+          const correctAnswers = studentAnswers.filter(answer => {
+            if (typeof answer.answer === 'object' && typeof answer.correct_answer === 'object') {
+              return JSON.stringify(answer.answer) === JSON.stringify(answer.correct_answer);
+            }
+            return answer.answer === answer.correct_answer;
+          }).length;
+
+          return {
+            ...student,
+            total_questions: totalQuestions,
+            completed_questions: answeredQuestions,
+            avg_score: answeredQuestions > 0 ? Math.round((correctAnswers / answeredQuestions) * 100) : 0,
+            progress: Math.round((answeredQuestions / totalQuestions) * 100)
+          };
+        });
+
+        setStudents(studentsWithPerformance);
+      } else {
+        // No students found or no questions available
+        setStudents(realStudents);
+      }
+
+    } catch (error) {
+      console.error('Error fetching module data:', error);
+
+      // Handle different error types
+      let errorMessage = 'Failed to load module data. Please try again.';
+
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error.detail) {
+        errorMessage = error.detail;
+      }
+
+      // Handle authentication errors
+      if (errorMessage.includes('Authentication required') || errorMessage.includes('401')) {
+        errorMessage = 'Please sign in to access this page.';
+      }
+
+      setError(errorMessage);
+      setStudents([]);
+    } finally {
+      setLoadingStudents(false);
+    }
+  }, [user, moduleName]);
+
   // Fetch module data and students when component mounts or module changes
   useEffect(() => {
-    if (moduleName && isAuthenticated) {
+    if (moduleName && isAuthenticated && user) {
       fetchModuleData();
     }
-  }, [moduleName, isAuthenticated]);
+  }, [moduleName, isAuthenticated, user, fetchModuleData]);
 
   // Filter and sort students based on search term, progress filter, and sort options
   useEffect(() => {
@@ -82,141 +218,6 @@ function StudentsPageContent() {
     
     setFilteredStudents(filtered);
   }, [students, searchTerm, sortField, sortDirection, progressFilter]);
-
-  const fetchModuleData = async () => {
-    try {
-      setLoadingStudents(true);
-      setError('');
-
-      // Get teacher ID from user data
-      const teacherId = user?.id || user?.sub;
-      if (!teacherId) {
-        setError('Unable to identify teacher. Please sign in again.');
-        setLoadingStudents(false);
-        return;
-      }
-
-      // First, get the module ID from module name
-      const modulesResponse = await apiClient.get(`/api/modules?teacher_id=${teacherId}`);
-      const modules = modulesResponse.data || modulesResponse;
-      // eslint-disable-next-line @next/next/no-assign-module-variable
-      const module = modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
-      
-      if (!module) {
-        setError(`Module "${moduleName}" not found in your modules`);
-        setLoadingStudents(false);
-        return;
-      }
-
-      setModuleData(module);
-
-      // Get questions for this module
-      const questionsResponse = await apiClient.get(`/api/student/modules/${module.id}/questions`);
-      const questions = questionsResponse.data || questionsResponse;
-
-      // Get all students who have submitted answers for this module using the optimized API
-      let realStudents = [];
-      let allModuleAnswers = [];
-      
-      try {
-        // Use the dedicated API endpoint to get all student answers for this module
-        const moduleAnswersResponse = await apiClient.get(`/api/student-answers?module_id=${module.id}`);
-        allModuleAnswers = moduleAnswersResponse.data || moduleAnswersResponse || [];
-        
-        console.log(`Retrieved ${allModuleAnswers.length} answers for module ${module.name}`);
-        
-        if (allModuleAnswers.length > 0) {
-          const studentMap = new Map();
-          
-          // Process all answers to extract unique students
-          allModuleAnswers.forEach(answer => {
-            if (answer.student_id) {
-              const studentKey = answer.student_id;
-              if (!studentMap.has(studentKey)) {
-                studentMap.set(studentKey, {
-                  id: answer.student_id,
-                  name: answer.student_id, // Use student_id as name for now
-                  email: answer.student_id, // Student ID might be email or we'll use it as identifier
-                  student_id: answer.student_id,
-                  last_access: answer.submitted_at || new Date().toISOString()
-                });
-              } else {
-                // Update last access if this answer is more recent
-                const existing = studentMap.get(studentKey);
-                if (answer.submitted_at && new Date(answer.submitted_at) > new Date(existing.last_access)) {
-                  existing.last_access = answer.submitted_at;
-                }
-              }
-            }
-          });
-          
-          realStudents = Array.from(studentMap.values());
-          console.log(`Found ${realStudents.length} unique students who have started tests in module ${module.name}`);
-        } else {
-          console.log('No student answers found for this module');
-        }
-      } catch (error) {
-        console.error('Error fetching module student answers:', error);
-      }
-
-      // Calculate actual performance for each student using the answers we already have
-      if (realStudents.length > 0 && questions && questions.length > 0 && allModuleAnswers.length > 0) {
-        const studentsWithPerformance = realStudents.map(student => {
-          // Filter answers for this specific student
-          const studentAnswers = allModuleAnswers.filter(answer => answer.student_id === student.student_id);
-          
-          // Calculate performance metrics
-          const totalQuestions = questions.length;
-          const answeredQuestions = studentAnswers.length;
-          
-          // Calculate correct answers by comparing student answer with correct answer
-          const correctAnswers = studentAnswers.filter(answer => {
-            if (typeof answer.answer === 'object' && typeof answer.correct_answer === 'object') {
-              return JSON.stringify(answer.answer) === JSON.stringify(answer.correct_answer);
-            }
-            return answer.answer === answer.correct_answer;
-          }).length;
-
-          return {
-            ...student,
-            total_questions: totalQuestions,
-            completed_questions: answeredQuestions,
-            avg_score: answeredQuestions > 0 ? Math.round((correctAnswers / answeredQuestions) * 100) : 0,
-            progress: Math.round((answeredQuestions / totalQuestions) * 100)
-          };
-        });
-        
-        setStudents(studentsWithPerformance);
-      } else {
-        // No students found or no questions available
-        setStudents(realStudents);
-      }
-
-    } catch (error) {
-      console.error('Error fetching module data:', error);
-      
-      // Handle different error types
-      let errorMessage = 'Failed to load module data. Please try again.';
-      
-      if (error.message) {
-        errorMessage = error.message;
-      } else if (typeof error === 'string') {
-        errorMessage = error;
-      } else if (error.detail) {
-        errorMessage = error.detail;
-      }
-      
-      // Handle authentication errors
-      if (errorMessage.includes('Authentication required') || errorMessage.includes('401')) {
-        errorMessage = 'Please sign in to access this page.';
-      }
-      
-      setError(errorMessage);
-      setStudents([]);
-    } finally {
-      setLoadingStudents(false);
-    }
-  };
 
   const handleStudentClick = async (student) => {
     // Navigate to dedicated student detail page
