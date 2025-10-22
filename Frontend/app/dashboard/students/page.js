@@ -37,31 +37,44 @@ function StudentsPageContent() {
       setLoadingStudents(true);
       setError('');
 
+      console.log('🔍 [Students Page] Starting fetchModuleData...');
+      console.log('📋 User object:', user);
+      console.log('📋 Module name from URL:', moduleName);
+
       // Get teacher ID from user data
       const teacherId = user?.id || user?.sub;
+      console.log('👤 Teacher ID:', teacherId);
+
       if (!teacherId) {
+        console.error('❌ No teacher ID found!');
         setError('Unable to identify teacher. Please sign in again.');
         setLoadingStudents(false);
         return;
       }
 
       // First, get the module ID from module name
+      console.log(`📡 Fetching modules for teacher: ${teacherId}`);
       const modulesResponse = await apiClient.get(`/api/modules?teacher_id=${teacherId}`);
       const modules = modulesResponse.data || modulesResponse;
+      console.log('📚 Modules received:', modules);
       // eslint-disable-next-line @next/next/no-assign-module-variable
       const module = modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
 
       if (!module) {
+        console.error(`❌ Module "${moduleName}" not found in modules:`, modules.map(m => m.name));
         setError(`Module "${moduleName}" not found in your modules`);
         setLoadingStudents(false);
         return;
       }
 
+      console.log('✅ Module found:', module);
       setModuleData(module);
 
       // Get questions for this module
+      console.log(`📡 Fetching questions for module: ${module.id}`);
       const questionsResponse = await apiClient.get(`/api/student/modules/${module.id}/questions`);
       const questions = questionsResponse.data || questionsResponse;
+      console.log(`📝 Questions received: ${questions.length} questions`);
 
       // Get all students who have submitted answers for this module using the optimized API
       let realStudents = [];
@@ -69,10 +82,11 @@ function StudentsPageContent() {
 
       try {
         // Use the dedicated API endpoint to get all student answers for this module
+        console.log(`📡 Fetching student answers for module: ${module.id}`);
         const moduleAnswersResponse = await apiClient.get(`/api/student-answers?module_id=${module.id}`);
         allModuleAnswers = moduleAnswersResponse.data || moduleAnswersResponse || [];
 
-        console.log(`Retrieved ${allModuleAnswers.length} answers for module ${module.name}`);
+        console.log(`📊 Retrieved ${allModuleAnswers.length} answers for module ${module.name}`);
 
         if (allModuleAnswers.length > 0) {
           const studentMap = new Map();
