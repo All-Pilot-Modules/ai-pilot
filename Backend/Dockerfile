@@ -33,4 +33,5 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
 
 # Run with uvicorn for production
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+# --proxy-headers tells uvicorn to trust X-Forwarded-* headers from Google Cloud Run
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers"]

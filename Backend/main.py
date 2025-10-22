@@ -3,6 +3,9 @@
 from fastapi import FastAPI
 from typing import Union
 import logging
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
 
 # Configure logging
 logging.basicConfig(
@@ -26,7 +29,22 @@ from app.database import engine
 from app.models import Base
 
 
+# Middleware to handle X-Forwarded-Proto from Google Cloud Run
+class ProxyHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        # Trust proxy headers from Google Cloud Run
+        forwarded_proto = request.headers.get("X-Forwarded-Proto")
+        if forwarded_proto:
+            request.scope["scheme"] = forwarded_proto
+
+        response = await call_next(request)
+        return response
+
+
 app = FastAPI()
+
+# 🔒 Add proxy headers middleware FIRST (before CORS)
+app.add_middleware(ProxyHeadersMiddleware)
 
 # 🚦 Apply CORS settings
 add_cors(app)
