@@ -94,7 +94,7 @@ function StudentsPageContent() {
       try {
         // Use the dedicated API endpoint to get all student answers for this module
         console.log(`📡 Fetching student answers for module: ${module.id}`);
-        const moduleAnswersResponse = await apiClient.get(`/api/student-answers?module_id=${module.id}`);
+        const moduleAnswersResponse = await apiClient.get(`/api/student-answers/?module_id=${module.id}`);
         allModuleAnswers = moduleAnswersResponse.data || moduleAnswersResponse || [];
 
         console.log(`📊 Retrieved ${allModuleAnswers.length} answers for module ${module.name}`);
