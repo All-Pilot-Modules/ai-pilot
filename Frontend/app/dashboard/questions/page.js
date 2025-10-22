@@ -364,8 +364,9 @@ function QuestionsPageContent() {
       console.log('API endpoint:', `/api/questions/${questionId}/upload-image`);
 
       // Use native fetch instead of apiClient to properly handle multipart/form-data
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       const token = localStorage.getItem('token');
-      const fetchResponse = await fetch(`http://localhost:8000/api/questions/${questionId}/upload-image`, {
+      const fetchResponse = await fetch(`${API_BASE_URL}/api/questions/${questionId}/upload-image`, {
         method: 'POST',
         headers: {
           ...(token && { 'Authorization': `Bearer ${token}` }),
@@ -428,8 +429,9 @@ function QuestionsPageContent() {
     if (!confirm('Remove image from this question?')) return;
 
     try {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/questions/${questionId}/image`, {
+      const response = await fetch(`${API_BASE_URL}/api/questions/${questionId}/image`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
