@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,13 +20,7 @@ export default function ChatbotSettingsPage() {
   const [savedMessage, setSavedMessage] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (moduleId) {
-      loadChatbotSettings();
-    }
-  }, [moduleId]);
-
-  const loadChatbotSettings = async () => {
+  const loadChatbotSettings = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
@@ -42,7 +36,13 @@ export default function ChatbotSettingsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [moduleId]);
+
+  useEffect(() => {
+    if (moduleId) {
+      loadChatbotSettings();
+    }
+  }, [moduleId, loadChatbotSettings]);
 
   const handleSave = async () => {
     try {
@@ -153,7 +153,7 @@ export default function ChatbotSettingsPage() {
           <CardHeader>
             <CardTitle>Chatbot Response Instructions</CardTitle>
             <CardDescription>
-              Define how the AI chatbot should respond to student questions. These instructions will guide the chatbot's tone, style, and behavior.
+              Define how the AI chatbot should respond to student questions. These instructions will guide the chatbot&apos;s tone, style, and behavior.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -272,7 +272,7 @@ export default function ChatbotSettingsPage() {
             <div>
               <h4 className="font-semibold mb-2">Content Boundaries</h4>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Set guidelines on what topics the chatbot should or shouldn't discuss with students.
+                Set guidelines on what topics the chatbot should or shouldn&apos;t discuss with students.
               </p>
             </div>
             <div>

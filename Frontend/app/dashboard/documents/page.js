@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -30,7 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Upload, FolderOpen, File, FileText, FileVideo, Image, Archive, Calendar, Edit3, Trash2, Download, Search, BookOpen, FileCheck, Clock, HardDrive, TrendingUp, Eye, Share2, ChevronRight, Plus, X, CheckCircle2, Loader2, AlertCircle, Database } from "lucide-react";
+import { Upload, FolderOpen, File, FileText, FileVideo, Image as ImageIcon, Archive, Calendar, Edit3, Trash2, Download, Search, BookOpen, FileCheck, Clock, HardDrive, TrendingUp, Eye, Share2, ChevronRight, Plus, X, CheckCircle2, Loader2, AlertCircle, Database } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/auth";
 import { SkeletonDocumentCard } from "@/components/ui/skeleton";
@@ -56,14 +56,7 @@ function DocumentsContent() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState(null);
 
-  // Load module and documents
-  useEffect(() => {
-    if (isAuthenticated && user && moduleName) {
-      fetchModuleAndDocuments();
-    }
-  }, [isAuthenticated, user, moduleName]);
-
-  const fetchModuleAndDocuments = async () => {
+  const fetchModuleAndDocuments = useCallback(async () => {
     try {
       setIsLoadingDocuments(true);
       const moduleData = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
@@ -80,7 +73,14 @@ function DocumentsContent() {
     } finally {
       setIsLoadingDocuments(false);
     }
-  };
+  }, [user, moduleName]);
+
+  // Load module and documents
+  useEffect(() => {
+    if (isAuthenticated && user && moduleName) {
+      fetchModuleAndDocuments();
+    }
+  }, [isAuthenticated, user, moduleName, fetchModuleAndDocuments]);
 
   const getFileIcon = (type) => {
     switch (type?.toLowerCase()) {
@@ -91,7 +91,7 @@ function DocumentsContent() {
       case "ppt": return <FileVideo className="w-5 h-5 text-orange-500" />;
       case "jpg":
       case "jpeg":
-      case "png": return <Image className="w-5 h-5 text-green-500" />;
+      case "png": return <ImageIcon className="w-5 h-5 text-green-500" />;
       case "zip":
       case "rar": return <Archive className="w-5 h-5 text-purple-500" />;
       default: return <FileText className="w-5 h-5 text-gray-500" />;
