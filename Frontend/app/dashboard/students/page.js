@@ -16,10 +16,20 @@ import { apiClient } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
 function StudentsPageContent() {
+  console.log('🚀 [Students Page] Component rendering...');
+
   const { user, loading, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const moduleName = searchParams.get('module');
+
+  console.log('📊 [Students Page] Initial state:', {
+    user: user,
+    loading,
+    isAuthenticated,
+    moduleName
+  });
+
   const [students, setStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,6 +48,7 @@ function StudentsPageContent() {
       setError('');
 
       console.log('🔍 [Students Page] Starting fetchModuleData...');
+      console.log('🌐 [Students Page] API URL:', process.env.NEXT_PUBLIC_API_URL);
       console.log('📋 User object:', user);
       console.log('📋 Module name from URL:', moduleName);
 
@@ -89,6 +100,7 @@ function StudentsPageContent() {
         console.log(`📊 Retrieved ${allModuleAnswers.length} answers for module ${module.name}`);
 
         if (allModuleAnswers.length > 0) {
+          console.log('🔄 [Students Page] Processing student answers...');
           const studentMap = new Map();
 
           // Process all answers to extract unique students
@@ -114,9 +126,10 @@ function StudentsPageContent() {
           });
 
           realStudents = Array.from(studentMap.values());
-          console.log(`Found ${realStudents.length} unique students who have started tests in module ${module.name}`);
+          console.log(`👥 [Students Page] Found ${realStudents.length} unique students who have started tests in module ${module.name}`);
+          console.log('📋 [Students Page] Student IDs:', realStudents.map(s => s.student_id));
         } else {
-          console.log('No student answers found for this module');
+          console.log('⚠️ [Students Page] No student answers found for this module');
         }
       } catch (error) {
         console.error('Error fetching module student answers:', error);
@@ -124,6 +137,7 @@ function StudentsPageContent() {
 
       // Calculate actual performance for each student using the answers we already have
       if (realStudents.length > 0 && questions && questions.length > 0 && allModuleAnswers.length > 0) {
+        console.log('📊 [Students Page] Calculating performance metrics...');
         const studentsWithPerformance = realStudents.map(student => {
           // Filter answers for this specific student
           const studentAnswers = allModuleAnswers.filter(answer => answer.student_id === student.student_id);
@@ -149,14 +163,26 @@ function StudentsPageContent() {
           };
         });
 
+        console.log(`✅ [Students Page] Setting ${studentsWithPerformance.length} students with performance data`);
+        console.log('📊 [Students Page] Sample student:', studentsWithPerformance[0]);
         setStudents(studentsWithPerformance);
       } else {
-        // No students found or no questions available
+        console.log('⚠️ [Students Page] Setting students without performance data:', {
+          studentsCount: realStudents.length,
+          questionsCount: questions?.length || 0,
+          answersCount: allModuleAnswers.length
+        });
         setStudents(realStudents);
       }
 
     } catch (error) {
-      console.error('Error fetching module data:', error);
+      console.error('❌❌❌ [Students Page] CRITICAL ERROR in fetchModuleData:', error);
+      console.error('❌ [Students Page] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        type: typeof error,
+        errorObject: error
+      });
 
       // Handle different error types
       let errorMessage = 'Failed to load module data. Please try again.';
@@ -174,22 +200,47 @@ function StudentsPageContent() {
         errorMessage = 'Please sign in to access this page.';
       }
 
+      console.error('❌ [Students Page] Final error message shown to user:', errorMessage);
       setError(errorMessage);
       setStudents([]);
     } finally {
+      console.log('🏁 [Students Page] fetchModuleData completed');
       setLoadingStudents(false);
     }
   }, [user, moduleName]);
 
   // Fetch module data and students when component mounts or module changes
   useEffect(() => {
+    console.log('⚡ [Students Page] useEffect triggered with:', {
+      moduleName,
+      isAuthenticated,
+      user: user ? 'User object exists' : 'No user object',
+      willFetch: !!(moduleName && isAuthenticated && user)
+    });
+
     if (moduleName && isAuthenticated && user) {
+      console.log('✅ [Students Page] All conditions met, calling fetchModuleData...');
       fetchModuleData();
+    } else {
+      console.log('❌ [Students Page] Conditions not met:', {
+        hasModuleName: !!moduleName,
+        isAuthenticated,
+        hasUser: !!user
+      });
     }
   }, [moduleName, isAuthenticated, user, fetchModuleData]);
 
+  // Monitor students state changes
+  useEffect(() => {
+    console.log('👥 [Students Page] Students state changed:', {
+      count: students.length,
+      students: students.slice(0, 2) // Log first 2 students
+    });
+  }, [students]);
+
   // Filter and sort students based on search term, progress filter, and sort options
   useEffect(() => {
+    console.log('🔍 [Students Page] Filtering students...');
     let filtered = students;
     
     // Apply search filter
@@ -229,7 +280,16 @@ function StudentsPageContent() {
         return bValue.localeCompare(aValue, undefined, { numeric: true });
       }
     });
-    
+
+    console.log('✅ [Students Page] Filtered students result:', {
+      originalCount: students.length,
+      filteredCount: filtered.length,
+      searchTerm,
+      progressFilter,
+      sortField,
+      sortDirection
+    });
+
     setFilteredStudents(filtered);
   }, [students, searchTerm, sortField, sortDirection, progressFilter]);
 
