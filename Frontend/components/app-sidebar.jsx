@@ -1,6 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -25,7 +26,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { LogOut, Settings, User, ChevronDown, LayoutDashboard, FolderOpen, HelpCircle, Users, Search } from "lucide-react";
+import { LogOut, Settings, User, ChevronDown, LayoutDashboard, FolderOpen, HelpCircle, Users, Search, BookOpen } from "lucide-react";
+import { apiClient } from "@/lib/auth";
 
 export function AppSidebar(props) {
   const searchParams = useSearchParams();
@@ -33,6 +35,33 @@ export function AppSidebar(props) {
   const pathname = usePathname();
   const module = searchParams?.get('module');
   const { user, logout } = useAuth();
+  const [modules, setModules] = useState([]);
+  const [loadingModules, setLoadingModules] = useState(false);
+
+  const fetchModules = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      setLoadingModules(true);
+      const data = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
+      setModules(data || []);
+    } catch (error) {
+      console.error('Failed to fetch modules:', error);
+    } finally {
+      setLoadingModules(false);
+    }
+  }, [user?.id]);
+
+  // Fetch user's modules
+  useEffect(() => {
+    fetchModules();
+  }, [fetchModules]);
+
+  const handleModuleSwitch = (moduleName) => {
+    // Keep the same page but change the module parameter
+    const currentPath = pathname.split('?')[0];
+    router.push(`${currentPath}?module=${moduleName}`);
+  };
 
   const isActive = (url) => {
     const path = url.split('?')[0];
@@ -79,20 +108,62 @@ export function AppSidebar(props) {
         </div>
 
         {/* Module Selector */}
-        <div className="bg-sidebar-accent/50 dark:bg-gray-800/50 rounded-lg p-3 cursor-pointer hover:bg-sidebar-accent/70 dark:hover:bg-gray-800/70 transition-colors">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              <div className="w-8 h-8 bg-gray-700 dark:bg-gray-600 rounded flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-xs font-semibold">{module?.charAt(0)?.toUpperCase() || 'M'}</span>
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-xs text-muted-foreground">Module</span>
-                <span className="text-sm font-semibold text-foreground truncate">{module || 'No module'}</span>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="bg-sidebar-accent/50 dark:bg-gray-800/50 rounded-lg p-3 cursor-pointer hover:bg-sidebar-accent/70 dark:hover:bg-gray-800/70 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded flex items-center justify-center flex-shrink-0">
+                    <BookOpen className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs text-muted-foreground">Module</span>
+                    <span className="text-sm font-semibold text-foreground truncate capitalize">{module || 'Select module'}</span>
+                  </div>
+                </div>
+                <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
               </div>
             </div>
-            <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          </div>
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuLabel>Switch Module</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {loadingModules ? (
+              <DropdownMenuItem disabled>
+                <span className="text-muted-foreground">Loading modules...</span>
+              </DropdownMenuItem>
+            ) : modules.length > 0 ? (
+              modules.map((mod) => (
+                <DropdownMenuItem
+                  key={mod.id}
+                  onClick={() => handleModuleSwitch(mod.name)}
+                  className="cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <div className="w-6 h-6 bg-blue-600 dark:bg-blue-500 rounded flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-xs font-semibold">{mod.name?.charAt(0)?.toUpperCase() || 'M'}</span>
+                    </div>
+                    <span className="capitalize truncate flex-1">{mod.name}</span>
+                    {module === mod.name && (
+                      <span className="text-blue-600 dark:text-blue-400">✓</span>
+                    )}
+                  </div>
+                </DropdownMenuItem>
+              ))
+            ) : (
+              <DropdownMenuItem disabled>
+                <span className="text-muted-foreground">No modules found</span>
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => router.push('/mymodules')}
+              className="cursor-pointer text-blue-600 dark:text-blue-400"
+            >
+              <span>View all modules</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarHeader>
 
       <SidebarContent className="px-3">
