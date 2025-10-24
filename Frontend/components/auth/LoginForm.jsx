@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { Spinner } from '@/components/ui/spinner';
+import { AlertCircle } from 'lucide-react';
 
 export default function LoginForm() {
   const [identifier, setIdentifier] = useState('');
@@ -33,7 +34,24 @@ export default function LoginForm() {
       await login(identifier, password);
       router.push('/mymodules');
     } catch (error) {
-      setError(error.message);
+      console.error('Login error:', error);
+
+      // Parse error message for better user experience
+      let errorMessage = error.message;
+
+      if (errorMessage.includes('Incorrect credentials')) {
+        errorMessage = 'Invalid email/user ID or password. Please check your credentials and try again.';
+      } else if (errorMessage.includes('Inactive user')) {
+        errorMessage = 'Your account has been deactivated. Please contact support for assistance.';
+      } else if (errorMessage.includes('Unable to connect') || errorMessage.includes('fetch')) {
+        errorMessage = 'Unable to connect to the server. Please check your internet connection and try again.';
+      } else if (errorMessage.includes('401')) {
+        errorMessage = 'Invalid email/user ID or password. Please try again.';
+      } else if (!errorMessage || errorMessage === 'Login failed') {
+        errorMessage = 'Login failed. Please check your credentials and try again.';
+      }
+
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -73,8 +91,9 @@ export default function LoginForm() {
               />
             </div>
             {error && (
-              <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                {error}
+              <div className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 p-3 rounded-lg">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{error}</span>
               </div>
             )}
           </CardContent>

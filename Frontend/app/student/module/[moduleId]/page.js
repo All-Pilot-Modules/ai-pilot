@@ -23,10 +23,12 @@ import {
   MessageSquare,
   Eye,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  ClipboardList
 } from "lucide-react";
 import { apiClient } from "@/lib/auth";
 import ChatTab from './ChatTab';
+import SurveyTab from './SurveyTab';
 import ModuleConsentModal from '@/components/ModuleConsentModal';
 import { FullPageLoader } from '@/components/LoadingSpinner';
 
@@ -55,11 +57,16 @@ export default function StudentModulePage() {
   const [error, setError] = useState("");
   const [feedbackStatus, setFeedbackStatus] = useState(null); // Track real-time feedback generation status
   const [isPolling, setIsPolling] = useState(false); // Track if we're actively polling
+  const [pollCount, setPollCount] = useState(0); // Track number of polling attempts
   const [answeredQuestions, setAnsweredQuestions] = useState({}); // Track which questions were answered
 
   // Consent modal state
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
+
+  // Survey status state
+  const [surveySubmitted, setSurveySubmitted] = useState(false);
+  const [surveyRequired, setSurveyRequired] = useState(false);
 
   // Check if chatbot is enabled based on module settings
   const isChatbotEnabled = moduleData?.assignment_config?.features?.chatbot_feedback?.enabled ?? true;
@@ -217,7 +224,12 @@ export default function StudentModulePage() {
       setFeedbackData(currentFeedback);
 
       const totalFeedback = Object.values(byAttempt).reduce((sum, attempt) => sum + Object.keys(attempt).length, 0);
-      console.log(`✅ Loaded ${totalFeedback} feedback items from database (${Object.keys(byAttempt).length} attempts)`);
+
+      // Only log on first load or when count changes (reduce console spam)
+      if (!window._lastFeedbackCount || window._lastFeedbackCount !== totalFeedback) {
+        console.log(`✅ Loaded ${totalFeedback} feedback items from database (${Object.keys(byAttempt).length} attempts)`);
+        window._lastFeedbackCount = totalFeedback;
+      }
 
       return byAttempt;
     } catch (error) {
@@ -243,7 +255,12 @@ export default function StudentModulePage() {
       );
       const status = response?.data || response || {};
 
-      console.log(`🔄 Feedback status: ${status.feedback_ready}/${status.total_questions} ready (${status.progress_percentage}%)`);
+      // Only log when status changes (reduce console spam)
+      const statusKey = `${status.feedback_ready}/${status.total_questions}`;
+      if (!window._lastFeedbackStatus || window._lastFeedbackStatus !== statusKey) {
+        console.log(`🔄 Feedback status: ${status.feedback_ready}/${status.total_questions} ready (${status.progress_percentage}%)`);
+        window._lastFeedbackStatus = statusKey;
+      }
 
       setFeedbackStatus(status);
 
@@ -268,16 +285,34 @@ export default function StudentModulePage() {
   useEffect(() => {
     if (!isPolling || !moduleAccess) return;
 
+    const MAX_POLLS = 40; // Stop after 40 polls (2 minutes)
     const currentAttempt = submissionStatus?.current_attempt || 1;
+    let currentPollCount = 0;
+
     const pollInterval = setInterval(async () => {
+      currentPollCount++;
+      setPollCount(currentPollCount);
+
+      // Stop polling after max attempts
+      if (currentPollCount >= MAX_POLLS) {
+        console.log('⏱️ Polling timeout - stopping after 2 minutes');
+        setIsPolling(false);
+        clearInterval(pollInterval);
+        return;
+      }
+
       const allComplete = await checkFeedbackStatus(moduleAccess, currentAttempt - 1); // Poll for previous attempt
 
       if (allComplete) {
         clearInterval(pollInterval);
+        setPollCount(0);
       }
     }, 3000); // Poll every 3 seconds
 
-    return () => clearInterval(pollInterval);
+    return () => {
+      clearInterval(pollInterval);
+      setPollCount(0);
+    };
   }, [isPolling, moduleAccess, submissionStatus]);
 
   const loadModuleContent = async (access) => {
@@ -292,11 +327,28 @@ export default function StudentModulePage() {
       ]);
 
       // Set data
-      setModuleData(moduleResponse.data || moduleResponse);
+      const moduleInfo = moduleResponse.data || moduleResponse;
+      setModuleData(moduleInfo);
       setDocuments(documentsResponse.data || documentsResponse);
 
       const questionsData = questionsResponse.data || questionsResponse;
       setQuestions(questionsData);
+
+      // Check survey status
+      if (access.studentId) {
+        try {
+          const surveyStatusResponse = await apiClient.get(
+            `/api/student/modules/${moduleId}/survey/status?student_id=${access.studentId}`
+          );
+          setSurveySubmitted(surveyStatusResponse.has_submitted || false);
+          setSurveyRequired(moduleInfo.survey_required || false);
+          console.log('📋 Survey status:', surveyStatusResponse);
+        } catch (err) {
+          console.log('No survey status found');
+          setSurveySubmitted(false);
+          setSurveyRequired(moduleInfo.survey_required || false);
+        }
+      }
 
       if (access.studentId && questionsData.length > 0) {
         // Use the new submission-status endpoint to get submission state
@@ -390,38 +442,39 @@ export default function StudentModulePage() {
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 border-b shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+              <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
                 <BookOpen className="w-6 h-6 text-white" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">
                   {moduleAccess?.moduleName || 'Module'}
                 </h1>
-                <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 gap-1 text-sm text-gray-600 dark:text-gray-400">
                   <span className="flex items-center gap-1">
-                    <User className="w-4 h-4" />
-                    {moduleAccess?.teacherName || 'Instructor'}
+                    <User className="w-4 h-4 flex-shrink-0" />
+                    <span className="truncate">{moduleAccess?.teacherName || 'Instructor'}</span>
                   </span>
                   <span className="flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    Accessed {new Date(moduleAccess?.accessTime || '').toLocaleDateString()}
+                    <Calendar className="w-4 h-4 flex-shrink-0" />
+                    <span className="whitespace-nowrap">Accessed {new Date(moduleAccess?.accessTime || '').toLocaleDateString()}</span>
                   </span>
                 </div>
               </div>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 whitespace-nowrap">
                 Active Student
               </Badge>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
                   sessionStorage.removeItem('student_module_access');
                   router.push('/join');
                 }}
+                className="whitespace-nowrap"
               >
                 Exit Module
               </Button>
@@ -433,31 +486,36 @@ export default function StudentModulePage() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="assignments" className="flex items-center gap-2">
+          {/* Mobile: Horizontal scrollable tabs */}
+          <TabsList className="w-full flex md:grid md:grid-cols-6 overflow-x-auto scrollbar-hide">
+            <TabsTrigger value="assignments" className="flex items-center gap-2 whitespace-nowrap flex-shrink-0">
               <HelpCircle className="w-4 h-4" />
-              Test
+              <span className="hidden sm:inline">Test</span>
             </TabsTrigger>
-            <TabsTrigger value="feedback" className="flex items-center gap-2">
+            <TabsTrigger value="feedback" className="flex items-center gap-2 whitespace-nowrap flex-shrink-0">
               <Brain className="w-4 h-4" />
-              Feedback
+              <span className="hidden sm:inline">Feedback</span>
               {Object.keys(feedbackData).length > 0 && (
                 <Badge variant="secondary" className="ml-1 text-xs">
                   {Object.keys(feedbackData).length}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="chat" className="flex items-center gap-2">
+            <TabsTrigger value="chat" className="flex items-center gap-2 whitespace-nowrap flex-shrink-0">
               <MessageSquare className="w-4 h-4" />
-              Chat
+              <span className="hidden sm:inline">Chat</span>
             </TabsTrigger>
-            <TabsTrigger value="materials" className="flex items-center gap-2">
+            <TabsTrigger value="materials" className="flex items-center gap-2 whitespace-nowrap flex-shrink-0">
               <FileText className="w-4 h-4" />
-              Materials
+              <span className="hidden sm:inline">Materials</span>
             </TabsTrigger>
-            <TabsTrigger value="progress" className="flex items-center gap-2">
+            <TabsTrigger value="progress" className="flex items-center gap-2 whitespace-nowrap flex-shrink-0">
               <CheckCircle className="w-4 h-4" />
-              Progress
+              <span className="hidden sm:inline">Progress</span>
+            </TabsTrigger>
+            <TabsTrigger value="survey" className="flex items-center gap-2 whitespace-nowrap flex-shrink-0">
+              <ClipboardList className="w-4 h-4" />
+              <span className="hidden sm:inline">Survey</span>
             </TabsTrigger>
           </TabsList>
 
@@ -465,6 +523,37 @@ export default function StudentModulePage() {
           <TabsContent value="assignments" className="space-y-6">
             {questions.length > 0 ? (
               <>
+                {/* Survey Completion Prompt - Show if student hasn't submitted survey */}
+                {!surveySubmitted && (submissionStatus?.submission_count > 0) && (
+                  <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-900/20 border-blue-200 dark:border-blue-800">
+                    <CardContent className="p-4 sm:p-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center flex-shrink-0">
+                          <ClipboardList className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white flex flex-wrap items-center gap-2">
+                            Share Your Feedback
+                            {surveyRequired && (
+                              <Badge variant="destructive" className="text-xs">Required</Badge>
+                            )}
+                          </h3>
+                          <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            Help us improve! Take a moment to complete the feedback survey about your learning experience.
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => setActiveTab('survey')}
+                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white flex-shrink-0 w-full sm:w-auto"
+                        >
+                          <ClipboardList className="w-4 h-4 mr-2" />
+                          Complete Survey
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* If test is completed, show appropriate banner */}
                 {(() => {
                   const hasFeedback = Object.keys(feedbackData).length > 0;
@@ -1005,8 +1094,21 @@ export default function StudentModulePage() {
                             ) : (
                               <div className="flex items-center justify-center py-12">
                                 <div className="text-center">
-                                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                                  <p className="text-gray-600 dark:text-gray-400">Generating feedback for this question...</p>
+                                  {pollCount >= 40 ? (
+                                    <>
+                                      <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+                                      <p className="text-gray-600 dark:text-gray-400 mb-2">Feedback generation is taking longer than expected</p>
+                                      <p className="text-sm text-gray-500 dark:text-gray-500">Please refresh the page or check back later</p>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                                      <p className="text-gray-600 dark:text-gray-400">Generating feedback for this question...</p>
+                                      {pollCount > 10 && (
+                                        <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">This may take a minute...</p>
+                                      )}
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             )}
@@ -1210,6 +1312,11 @@ export default function StudentModulePage() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* Survey Tab */}
+          <TabsContent value="survey">
+            <SurveyTab moduleId={moduleId} studentId={moduleAccess?.studentId} />
           </TabsContent>
         </Tabs>
       </div>

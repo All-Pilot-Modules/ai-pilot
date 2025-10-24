@@ -6,6 +6,7 @@ def parse_testbank_text_to_questions(raw_text: str, module_id: UUID, document_id
     questions = []
     lines = raw_text.splitlines()
     i = 0
+    question_counter = 1  # Track question order
     while i < len(lines):
         line = lines[i].strip()
 
@@ -66,6 +67,7 @@ def parse_testbank_text_to_questions(raw_text: str, module_id: UUID, document_id
                 "type": q_type,
                 "text": q_text,
                 "slide_number": None,
+                "question_order": question_counter,
                 "options": options if options else None,
                 "correct_answer": correct_answer,
                 "learning_outcome": learning_outcome,
@@ -73,6 +75,7 @@ def parse_testbank_text_to_questions(raw_text: str, module_id: UUID, document_id
                 "image_url": None,
                 "has_text_input": False if q_type == "short" else True
             })
+            question_counter += 1
         else:
             i += 1
 

@@ -10,6 +10,18 @@ def create_question(db: Session, question_data: QuestionCreate) -> Question:
         # Convert Pydantic model to dict
         question_dict = question_data.dict()
 
+        # Auto-assign question_order if not provided
+        if question_dict.get('question_order') is None:
+            # Get the max question_order for this module and add 1
+            max_order = db.query(Question.question_order).filter(
+                Question.module_id == question_dict['module_id']
+            ).order_by(Question.question_order.desc()).first()
+
+            if max_order and max_order[0] is not None:
+                question_dict['question_order'] = max_order[0] + 1
+            else:
+                question_dict['question_order'] = 1
+
         # Create new question with explicit ID
         new_q = Question(
             id=uuid4(),
@@ -38,7 +50,7 @@ def get_questions_by_document_id(db: Session, document_id: UUID) -> List[Questio
 
 # ✅ Get all questions from a specific module (direct relationship)
 def get_questions_by_module_id(db: Session, module_id: UUID) -> List[Question]:
-    return db.query(Question).filter(Question.module_id == module_id).all()
+    return db.query(Question).filter(Question.module_id == module_id).order_by(Question.question_order.nulls_last(), Question.id).all()
 
 # ✅ Get a single question by ID
 def get_question_by_id(db: Session, question_id: UUID) -> Optional[Question]:

@@ -12,9 +12,9 @@ class AIFeedback(Base):
     # Link to student answer (single source of truth)
     answer_id = Column(UUID(as_uuid=True), ForeignKey("student_answers.id", ondelete="CASCADE"), nullable=False, unique=True)
 
-    # Correctness
-    is_correct = Column(Boolean, nullable=False)
-    score = Column(Integer, nullable=False)  # 0-100
+    # Correctness (nullable to allow feedback without correct answer)
+    is_correct = Column(Boolean, nullable=True)  # None when correct answer not set
+    score = Column(Integer, nullable=True)  # 0-100, None when correct answer not set
 
     # Feedback content (stored as JSONB for flexibility)
     feedback_data = Column(JSONB, nullable=False)  # Contains explanation, hints, strengths, weaknesses, etc.

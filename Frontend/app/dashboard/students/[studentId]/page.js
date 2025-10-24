@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { ArrowLeft, User, Mail, Calendar, Clock, Award, BookOpen, TrendingUp, CheckCircle, XCircle, HelpCircle, List, Download, BarChart3, PieChart, Bot, FileDown, FileText, FileJson } from "lucide-react";
+import { ArrowLeft, User, Calendar, Clock, Award, BookOpen, TrendingUp, CheckCircle, XCircle, HelpCircle, List, Download, BarChart3, PieChart, Bot, FileDown, FileText, FileJson, ClipboardList, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, Suspense } from "react";
 import { apiClient } from "@/lib/auth";
@@ -30,6 +30,9 @@ function StudentDetailPageContent() {
   const [aiFeedbackMap, setAiFeedbackMap] = useState({});
   const [answersByAttempt, setAnswersByAttempt] = useState({});
   const [selectedAttempt, setSelectedAttempt] = useState(1);
+  const [surveyData, setSurveyData] = useState(null);
+  const [surveyResponse, setSurveyResponse] = useState(null);
+  const [showSurvey, setShowSurvey] = useState(false);
 
   useEffect(() => {
     if (studentId && moduleName && isAuthenticated) {
@@ -61,6 +64,26 @@ function StudentDetailPageContent() {
       }
 
       setModuleData(module);
+
+      // Fetch survey data and student's response
+      try {
+        const surveyConfig = await apiClient.get(`/api/modules/${module.id}/survey`);
+        setSurveyData(surveyConfig);
+
+        // Try to get student's survey response
+        try {
+          const studentSurveyResponse = await apiClient.get(
+            `/api/student/modules/${module.id}/survey?student_id=${studentId}`
+          );
+          if (studentSurveyResponse.my_response) {
+            setSurveyResponse(studentSurveyResponse.my_response);
+          }
+        } catch (surveyErr) {
+          console.log('No survey response from student yet');
+        }
+      } catch (surveyError) {
+        console.log('No survey configured for this module');
+      }
 
       // Get questions for this module
       const questionsResponse = await apiClient.get(`/api/student/modules/${module.id}/questions`);
@@ -114,12 +137,10 @@ function StudentDetailPageContent() {
         setSelectedAttempt(attempts[0]); // Default to most recent attempt
       }
 
-      // Build student info from first answer
-      const firstAnswer = studentModuleAnswers[0];
+      // Build student info from answers
       const studentInfo = {
         id: studentId,
-        name: studentId,
-        email: studentId,
+        name: studentId, // Display student banner ID as name
         student_id: studentId,
         last_access: studentModuleAnswers.reduce((latest, answer) => {
           return new Date(answer.submitted_at) > new Date(latest) ? answer.submitted_at : latest;
@@ -725,6 +746,107 @@ function StudentDetailPageContent() {
                     </Card>
                   </div>
                 </div>
+
+                {/* Survey Response Section */}
+                {surveyData && surveyData.survey_questions && surveyData.survey_questions.length > 0 && (
+                  <div className="mb-8">
+                    <Card className="border-2 border-purple-200 dark:border-purple-800">
+                      <CardHeader
+                        className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 border-b border-purple-200 dark:border-purple-800 cursor-pointer hover:from-purple-100 hover:to-pink-100 dark:hover:from-purple-950/30 dark:hover:to-pink-950/30 transition-colors"
+                        onClick={() => setShowSurvey(!showSurvey)}
+                      >
+                        <CardTitle className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                              <ClipboardList className="w-6 h-6 text-white" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span>Student Feedback Survey</span>
+                                {surveyResponse ? (
+                                  <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                                ) : (
+                                  <XCircle className="w-5 h-5 text-gray-400" />
+                                )}
+                              </div>
+                              <p className="text-sm font-normal text-muted-foreground mt-1">
+                                {surveyResponse
+                                  ? `Submitted on ${new Date(surveyResponse.submitted_at).toLocaleString()}`
+                                  : 'Not submitted yet'}
+                              </p>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                          >
+                            {showSurvey ? (
+                              <ChevronUp className="w-5 h-5" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5" />
+                            )}
+                          </Button>
+                        </CardTitle>
+                      </CardHeader>
+                      {showSurvey && (
+                        <CardContent className="pt-6">
+                        {surveyResponse ? (
+                          <div className="space-y-6">
+                            {surveyData.survey_questions.map((question, qIdx) => (
+                              <div key={question.id} className="border-b border-gray-200 dark:border-gray-800 pb-6 last:border-0 last:pb-0">
+                                <div className="flex items-start gap-3 mb-3">
+                                  <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <span className="text-sm font-bold text-purple-600 dark:text-purple-400">Q{qIdx + 1}</span>
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="font-semibold text-base text-foreground mb-1">
+                                      {question.question}
+                                      {question.required && <span className="text-red-500 ml-1">*</span>}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-2">
+                                      <div className={`text-xs px-2 py-1 rounded ${
+                                        question.type === 'short'
+                                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                          : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                                      }`}>
+                                        {question.type === 'short' ? 'Short Answer' : 'Long Answer'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="ml-11">
+                                  <div className="flex items-start gap-2">
+                                    <MessageSquare className="w-4 h-4 text-muted-foreground mt-1 flex-shrink-0" />
+                                    <div className="flex-1 p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                                      {surveyResponse.responses[question.id] ? (
+                                        <p className="text-foreground whitespace-pre-wrap break-words leading-relaxed">
+                                          {surveyResponse.responses[question.id]}
+                                        </p>
+                                      ) : (
+                                        <p className="text-muted-foreground italic">No response provided</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <ClipboardList className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+                            <p className="text-lg font-medium text-muted-foreground mb-2">No Survey Response Yet</p>
+                            <p className="text-sm text-muted-foreground">
+                              This student hasn't submitted their feedback survey for this module.
+                            </p>
+                          </div>
+                        )}
+                        </CardContent>
+                      )}
+                    </Card>
+                  </div>
+                )}
 
                 {/* Attempt Selector Tabs */}
                 {Object.keys(answersByAttempt).length > 1 && (

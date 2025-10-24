@@ -283,24 +283,24 @@ export default function Home() {
                     <span className="text-sm font-medium">My Modules</span>
                   </Link>
                 </Button>
-                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-500 transition-all group">
-                  <Link href={modules.length > 0 ? `/dashboard/students?module=${encodeURIComponent(modules[0].name)}` : "/mymodules"}>
+                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-500 transition-all group" disabled={modules.length === 0}>
+                  <Link href={modules.length > 0 ? `/dashboard/students` : "/mymodules"}>
                     <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center group-hover:bg-green-500 transition-colors">
                       <Users className="w-6 h-6 text-green-600 dark:text-green-400 group-hover:text-white transition-colors" />
                     </div>
                     <span className="text-sm font-medium">Students</span>
                   </Link>
                 </Button>
-                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-purple-50 dark:hover:bg-purple-950/30 hover:border-purple-500 transition-all group">
-                  <Link href={modules.length > 0 ? `/dashboard/analytics?module=${encodeURIComponent(modules[0].name)}` : "/mymodules"}>
+                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-purple-50 dark:hover:bg-purple-950/30 hover:border-purple-500 transition-all group" disabled={modules.length === 0}>
+                  <Link href={modules.length > 0 ? `/dashboard/analytics` : "/mymodules"}>
                     <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center group-hover:bg-purple-500 transition-colors">
                       <BarChart3 className="w-6 h-6 text-purple-600 dark:text-purple-400 group-hover:text-white transition-colors" />
                     </div>
                     <span className="text-sm font-medium">Analytics</span>
                   </Link>
                 </Button>
-                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:border-orange-500 transition-all group">
-                  <Link href={modules.length > 0 ? `/dashboard/documents?module=${encodeURIComponent(modules[0].name)}` : "/mymodules"}>
+                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:border-orange-500 transition-all group" disabled={modules.length === 0}>
+                  <Link href={modules.length > 0 ? `/dashboard/documents` : "/mymodules"}>
                     <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center group-hover:bg-orange-500 transition-colors">
                       <FileText className="w-6 h-6 text-orange-600 dark:text-orange-400 group-hover:text-white transition-colors" />
                     </div>

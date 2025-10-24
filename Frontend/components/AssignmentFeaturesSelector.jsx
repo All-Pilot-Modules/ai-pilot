@@ -145,13 +145,16 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
           {config.features.chatbot_feedback.enabled && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs">Mode</Label>
-                  <Select 
-                    value={config.features.chatbot_feedback.conversation_mode} 
-                    onValueChange={(value) => updateConfig('features.chatbot_feedback.conversation_mode', value)}
+                <div className="opacity-50">
+                  <Label className="text-xs flex items-center gap-1">
+                    Mode
+                    <Badge variant="secondary" className="text-[10px] px-1 py-0">Soon</Badge>
+                  </Label>
+                  <Select
+                    value={config.features.chatbot_feedback.conversation_mode}
+                    disabled={true}
                   >
-                    <SelectTrigger className="mt-1 h-8">
+                    <SelectTrigger className="mt-1 h-8" disabled>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -160,13 +163,16 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label className="text-xs">AI Model</Label>
-                  <Select 
-                    value={config.features.chatbot_feedback.ai_model} 
-                    onValueChange={(value) => updateConfig('features.chatbot_feedback.ai_model', value)}
+                <div className="opacity-50">
+                  <Label className="text-xs flex items-center gap-1">
+                    AI Model
+                    <Badge variant="secondary" className="text-[10px] px-1 py-0">Soon</Badge>
+                  </Label>
+                  <Select
+                    value={config.features.chatbot_feedback.ai_model}
+                    disabled={true}
                   >
-                    <SelectTrigger className="mt-1 h-8">
+                    <SelectTrigger className="mt-1 h-8" disabled>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -181,19 +187,21 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
         </div>
 
         {/* Mastery Learning */}
-        <div className="border rounded-lg p-4 bg-purple-50/50 dark:bg-purple-950/10 border-purple-200 dark:border-purple-800">
+        <div className="border rounded-lg p-4 bg-gray-50/50 dark:bg-gray-950/10 border-gray-200 dark:border-gray-800 opacity-60">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Target className="w-4 h-4 text-purple-600" />
+              <Target className="w-4 h-4 text-gray-600" />
               <h4 className="font-medium text-sm">Mastery Learning</h4>
+              <Badge variant="secondary" className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">Coming Soon</Badge>
             </div>
             <Switch
-              checked={config.features.mastery_learning.enabled}
-              onCheckedChange={(checked) => updateConfig('features.mastery_learning.enabled', checked)}
+              checked={false}
+              disabled={true}
+              onCheckedChange={() => {}}
             />
           </div>
           <p className="text-xs text-muted-foreground mb-3">
-            Repeat questions until students achieve consecutive correct answers
+            Repeat questions until students achieve consecutive correct answers (Feature in development)
           </p>
           {config.features.mastery_learning.enabled && (
             <div className="space-y-3">

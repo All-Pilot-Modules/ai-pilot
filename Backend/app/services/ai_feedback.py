@@ -147,12 +147,12 @@ class AIFeedbackService:
             # Save feedback to database
             try:
                 logger.info(f"💾 Attempting to save feedback for answer_id: {student_answer.id}")
-                logger.info(f"💾 Feedback data: is_correct={feedback.get('is_correct', False)}, score={feedback.get('correctness_score', 0)}")
+                logger.info(f"💾 Feedback data: is_correct={feedback.get('is_correct')}, score={feedback.get('correctness_score')}")
 
                 feedback_create = AIFeedbackCreate(
                     answer_id=student_answer.id,
-                    is_correct=feedback.get("is_correct", False),
-                    score=feedback.get("correctness_score", 0),
+                    is_correct=feedback.get("is_correct"),  # Allow None when no correct answer
+                    score=feedback.get("correctness_score"),  # Allow None when no correct answer
                     feedback_data=feedback_data
                 )
 
@@ -222,29 +222,30 @@ class AIFeedbackService:
         correct_answer = question.correct_option_id or question.correct_answer
         options = question.options or {}
 
-        # Validate that we have a correct answer
-        if not correct_answer:
-            logger.error(f"Question {question.id} has no correct answer set (neither correct_option_id nor correct_answer)")
-            raise ValueError(f"Question {question.id} is missing a correct answer. Cannot generate feedback.")
-
-        # Check if answer is correct
-        # Handle both cases: student_answer could be the option letter (e.g., "A")
-        # or the option text (e.g., "one") due to legacy data
-        is_correct = False
-        if student_answer and student_answer.upper() == correct_answer.upper():
-            # Direct match with option letter
-            is_correct = True
-        elif options and student_answer:
-            # Check if student_answer matches the text of the correct option
-            correct_option_text = options.get(correct_answer, "").strip().lower()
-            if student_answer.strip().lower() == correct_option_text:
+        # Handle missing correct answer - still provide feedback, just without correctness evaluation
+        has_correct_answer = bool(correct_answer)
+        if not has_correct_answer:
+            logger.warning(f"⚠️  Question {question.id} has no correct answer set - will provide general feedback only")
+            is_correct = None  # Unknown correctness
+        else:
+            # Check if answer is correct
+            # Handle both cases: student_answer could be the option letter (e.g., "A")
+            # or the option text (e.g., "one") due to legacy data
+            is_correct = False
+            if student_answer and student_answer.upper() == correct_answer.upper():
+                # Direct match with option letter
                 is_correct = True
-            # Also check if the correct_answer matches any option key that has this text
-            for key, value in options.items():
-                if (student_answer.upper() == key.upper() and
-                    correct_answer.upper() == key.upper()):
+            elif options and student_answer:
+                # Check if student_answer matches the text of the correct option
+                correct_option_text = options.get(correct_answer, "").strip().lower()
+                if student_answer.strip().lower() == correct_option_text:
                     is_correct = True
-                    break
+                # Also check if the correct_answer matches any option key that has this text
+                for key, value in options.items():
+                    if (student_answer.upper() == key.upper() and
+                        correct_answer.upper() == key.upper()):
+                        is_correct = True
+                        break
 
         # Build dynamic prompt using rubric and RAG context
         prompt = build_mcq_feedback_prompt(
@@ -339,6 +340,11 @@ class AIFeedbackService:
 
         correct_answer = question.correct_answer or "No reference answer provided"
         question_type = question.type
+
+        # Check if we have a reference answer to compare against
+        has_reference = question.correct_answer and question.correct_answer.strip()
+        if not has_reference:
+            logger.warning(f"⚠️  Question {question.id} has no reference answer set - will provide general feedback only")
 
         # Build dynamic prompt using rubric and RAG context
         prompt = build_text_feedback_prompt(

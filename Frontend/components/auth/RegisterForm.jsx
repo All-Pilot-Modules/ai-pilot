@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { Spinner } from '@/components/ui/spinner';
+import { AlertCircle } from 'lucide-react';
 
 export default function RegisterForm() {
   const [formData, setFormData] = useState({
@@ -58,17 +59,31 @@ export default function RegisterForm() {
       const { confirmPassword, ...registerData } = formData;
       console.log('Registering user:', registerData);
       await register(registerData);
-      
+
       // Auto login after registration
       await login(formData.email, formData.password);
       router.push('/mymodules');
     } catch (error) {
       console.error('Registration failed:', error);
-      if (error.message.includes('fetch')) {
-        setError('Unable to connect to server. Please make sure the backend is running and try again.');
-      } else {
-        setError(error.message || 'Registration failed. Please try again.');
+
+      // Parse error message for better user experience
+      let errorMessage = error.message;
+
+      if (errorMessage.includes('User with this ID, email, or username already exists')) {
+        errorMessage = 'An account with this User ID, email, or username already exists. Please use different credentials or sign in instead.';
+      } else if (errorMessage.includes('already exists')) {
+        errorMessage = 'This account already exists. Please try signing in or use different credentials.';
+      } else if (errorMessage.includes('Unable to connect') || errorMessage.includes('fetch')) {
+        errorMessage = 'Unable to connect to the server. Please check your internet connection and try again.';
+      } else if (errorMessage.includes('400')) {
+        errorMessage = 'Invalid registration data. Please check all fields and try again.';
+      } else if (errorMessage.includes('network') || errorMessage.includes('Network')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (!errorMessage || errorMessage === 'Registration failed') {
+        errorMessage = 'Registration failed. Please check your information and try again.';
       }
+
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -151,8 +166,9 @@ export default function RegisterForm() {
               />
             </div>
             {error && (
-              <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                {error}
+              <div className="flex items-start gap-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 p-3 rounded-lg">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{error}</span>
               </div>
             )}
           </CardContent>

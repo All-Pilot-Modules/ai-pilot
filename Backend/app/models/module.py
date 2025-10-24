@@ -28,6 +28,45 @@ This study aims to improve educational outcomes using AI-assisted learning tools
 If you have any questions about this research, please contact your instructor.
 """
 
+# Default survey questions template
+DEFAULT_SURVEY_QUESTIONS = [
+    {
+        "id": "q1",
+        "question": "What did you find most helpful in this module?",
+        "type": "long",
+        "required": True,
+        "placeholder": "Please share what aspects helped you learn effectively..."
+    },
+    {
+        "id": "q2",
+        "question": "What aspects of the module were challenging?",
+        "type": "long",
+        "required": False,
+        "placeholder": "Describe any difficulties or areas for improvement..."
+    },
+    {
+        "id": "q3",
+        "question": "How would you rate your overall learning experience? (Please explain)",
+        "type": "short",
+        "required": True,
+        "placeholder": "Your rating and brief explanation..."
+    },
+    {
+        "id": "q4",
+        "question": "Any suggestions for improvement?",
+        "type": "long",
+        "required": False,
+        "placeholder": "Share your ideas..."
+    },
+    {
+        "id": "q5",
+        "question": "Additional comments:",
+        "type": "long",
+        "required": False,
+        "placeholder": "Any other feedback you'd like to share..."
+    }
+]
+
 
 class Module(Base):
     __tablename__ = "modules"
@@ -48,6 +87,10 @@ class Module(Base):
     # Consent form for research participation (customizable per module)
     consent_form_text = Column(Text, nullable=True, default=DEFAULT_CONSENT_FORM)
     consent_required = Column(Boolean, default=True)  # Whether students must fill consent before accessing
+
+    # Survey questions for student feedback (customizable per module)
+    survey_questions = Column(JSONB, nullable=True, default=DEFAULT_SURVEY_QUESTIONS)
+    survey_required = Column(Boolean, default=False)  # Whether students must complete survey
 
     # Chatbot custom instructions (teacher-defined response style and behavior)
     chatbot_instructions = Column(Text, nullable=True)

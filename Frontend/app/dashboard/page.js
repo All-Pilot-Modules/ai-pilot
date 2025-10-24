@@ -38,7 +38,8 @@ import {
   Sparkles,
   CheckCircle,
   XCircle,
-  Brain
+  Brain,
+  ClipboardList
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useCallback, Suspense } from "react";
@@ -52,9 +53,9 @@ function DashboardContent() {
   const moduleName = searchParams.get('module');
   const [moduleData, setModuleData] = useState({
     accessCode: "",
-    totalStudents: 24,
-    activeTests: 3,
-    completedTests: 12
+    totalStudents: 0,
+    totalQuestions: 0,
+    totalDocuments: 0
   });
   
   const [copiedItems, setCopiedItems] = useState({});
@@ -93,10 +94,42 @@ function DashboardContent() {
 
       if (currentModule) {
         setModuleId(currentModule.id);
-        setModuleData(prev => ({
-          ...prev,
-          accessCode: currentModule.access_code
-        }));
+
+        // Load real data
+        try {
+          // Get students count (from student-answers endpoint - count unique students)
+          let studentsCount = 0;
+          try {
+            const answersData = await apiClient.get(`/api/student-answers/?module_id=${currentModule.id}`);
+            if (Array.isArray(answersData)) {
+              const uniqueStudents = new Set(answersData.map(a => a.student_id));
+              studentsCount = uniqueStudents.size;
+            }
+          } catch (err) {
+            console.log('No student answers yet');
+          }
+
+          // Get questions count
+          const questionsData = await apiClient.get(`/api/questions/by-module?module_id=${currentModule.id}`);
+          const questionsCount = Array.isArray(questionsData) ? questionsData.length : 0;
+
+          // Get documents count (need teacher_id parameter)
+          const documentsData = await apiClient.get(`/api/documents?teacher_id=${user.id}&module_id=${currentModule.id}`);
+          const documentsCount = Array.isArray(documentsData) ? documentsData.length : 0;
+
+          setModuleData({
+            accessCode: currentModule.access_code,
+            totalStudents: studentsCount,
+            totalQuestions: questionsCount,
+            totalDocuments: documentsCount
+          });
+        } catch (error) {
+          console.error('Failed to load module stats:', error);
+          setModuleData(prev => ({
+            ...prev,
+            accessCode: currentModule.access_code
+          }));
+        }
 
         // Load rubric summary
         loadRubricSummary(currentModule.id);
@@ -253,55 +286,43 @@ function DashboardContent() {
                     <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                       <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <Badge variant="secondary" className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-0 text-xs">
-                      <TrendingUp className="w-3 h-3 mr-1" />
-                      +12%
-                    </Badge>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Students</p>
                     <p className="text-3xl font-bold text-gray-900 dark:text-white">{moduleData.totalStudents}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Enrolled this semester</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Enrolled in module</p>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Active Tests Card */}
+              {/* Total Questions Card */}
               <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-6 relative">
                   <div className="flex items-start justify-between mb-4">
                     <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                       <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <Badge variant="secondary" className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-0 text-xs">
-                      Active
-                    </Badge>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Active Tests</p>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{moduleData.activeTests}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Available for students</p>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Total Questions</p>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{moduleData.totalQuestions}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">In test bank</p>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Completed Tests Card */}
+              {/* Total Documents Card */}
               <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow">
                 <CardContent className="p-6 relative">
                   <div className="flex items-start justify-between mb-4">
                     <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                      <Award className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <Badge variant="secondary" className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-0 text-xs">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      80%
-                    </Badge>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Completed</p>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{moduleData.completedTests}</p>
-
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Submissions received</p>
+                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Documents</p>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white">{moduleData.totalDocuments}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">Course materials</p>
                   </div>
                 </CardContent>
               </Card>
@@ -369,168 +390,6 @@ function DashboardContent() {
               </Card>
             </div>
 
-            {/* Recent Activity & Quick Stats */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-              {/* Recent Student Activity */}
-              <Card className="lg:col-span-2 border-0 shadow-xl bg-white dark:bg-gray-900">
-                <CardHeader className="border-b border-gray-100 dark:border-gray-800 pb-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-xl font-bold flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-blue-600" />
-                        Recent Activity
-                      </CardTitle>
-                      <p className="text-sm text-muted-foreground mt-1">Latest student submissions and enrollments</p>
-                    </div>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/dashboard/students?module=${moduleName}`}>
-                        View All
-                      </Link>
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    {/* Activity Item 1 */}
-                    <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                      <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
-                        <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-gray-100">New test submission</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                              Student completed Assignment 1 with 85% score
-                            </p>
-                          </div>
-                          <span className="text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap">2 hrs ago</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Activity Item 2 */}
-                    <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                      <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
-                        <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-gray-100">New student enrolled</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                              3 students joined using access code
-                            </p>
-                          </div>
-                          <span className="text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap">5 hrs ago</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Activity Item 3 */}
-                    <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                      <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
-                        <Brain className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-gray-100">AI feedback generated</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                              12 student answers received personalized feedback
-                            </p>
-                          </div>
-                          <span className="text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap">1 day ago</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Activity Item 4 */}
-                    <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
-                      <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
-                        <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-gray-100">Documents uploaded</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                              Added 2 new study materials to module
-                            </p>
-                          </div>
-                          <span className="text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap">2 days ago</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Quick Module Stats */}
-              <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800">
-                <CardHeader className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                  <div>
-                    <CardTitle className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-white">
-                      <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                      Module Stats
-                    </CardTitle>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Key performance indicators</p>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="space-y-6">
-                    {/* Average Score */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Average Score</span>
-                        <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">78%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: '78%' }}></div>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Across all submissions</p>
-                    </div>
-
-                    {/* Completion Rate */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Completion Rate</span>
-                        <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">92%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: '92%' }}></div>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Students who submitted</p>
-                    </div>
-
-                    {/* Engagement Score */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Engagement</span>
-                        <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">85%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: '85%' }}></div>
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Active participation rate</p>
-                    </div>
-
-                    <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
-                          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">45</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Questions</p>
-                        </div>
-                        <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
-                          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">127</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">Feedbacks</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
 
             {/* Configuration Cards Row */}
             {moduleId && (
@@ -701,6 +560,78 @@ function DashboardContent() {
                           <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Track Responses</p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
                             Monitor student consent status and view response analytics
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Survey Configuration Card */}
+                <Card className="border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800">
+                  <CardHeader className="border-b border-gray-200 dark:border-gray-700 pb-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex-1">
+                        <CardTitle className="text-lg sm:text-xl font-semibold flex items-center gap-2 sm:gap-3 text-gray-900 dark:text-gray-100">
+                          <div className="p-2 sm:p-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex-shrink-0">
+                            <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                          </div>
+                          Student Survey
+                        </CardTitle>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-2 ml-9 sm:ml-[52px]">
+                          Collect student feedback
+                        </p>
+                      </div>
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        <Button asChild size="sm" className="bg-purple-600 hover:bg-purple-700 text-white flex-1 sm:flex-initial">
+                          <Link href={`/dashboard/survey?module=${moduleId}&name=${moduleName}`}>
+                            <Settings className="w-4 h-4 mr-2" />
+                            Edit Survey
+                          </Link>
+                        </Button>
+                        <Button asChild size="sm" variant="outline" className="border-purple-600 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950 flex-1 sm:flex-initial">
+                          <Link href={`/dashboard/survey/responses?module=${moduleId}&name=${moduleName}`}>
+                            <Eye className="w-4 h-4 mr-2" />
+                            View Responses
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="relative pt-6">
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        <div className="p-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                          <ClipboardList className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Custom Questions</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Create and customize survey questions to gather student feedback about the module
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        <div className="p-2.5 bg-purple-500/20 dark:bg-purple-500/30 rounded-lg">
+                          <FileText className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Text Responses</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Students provide detailed written feedback in their own words
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-4 p-4 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                        <div className="p-2.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                          <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-semibold text-gray-900 dark:text-gray-100 mb-1">View Responses</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Access and analyze all student survey responses in one place
                           </p>
                         </div>
                       </div>

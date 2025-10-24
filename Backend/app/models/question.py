@@ -13,6 +13,7 @@ class Question(Base):
     type = Column(String, nullable=False)  # mcq, short, long
     text = Column(Text, nullable=False)
     slide_number = Column(Integer, nullable=True)
+    question_order = Column(Integer, nullable=True)  # Order/position of question in the module
 
     options = Column(JSONB, nullable=True)  # Only for MCQs - format: {"A": "Apple", "B": "Ball"}
     correct_answer = Column(String, nullable=True)  # Legacy field - kept for backward compatibility

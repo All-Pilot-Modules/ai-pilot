@@ -8,6 +8,7 @@ class QuestionBase(BaseModel):
     type: str = Field(..., description="Question type: mcq, short, or long")
     text: str = Field(..., description="Question text")
     slide_number: Optional[int] = Field(None, description="If from slides, optional slide number")
+    question_order: Optional[int] = Field(None, description="Order/position of question in the module")
     options: Optional[Dict[str, str]] = Field(None, description="Only for MCQs, e.g., {'A': 'Apple', 'B': 'Ball'}")
     correct_answer: Optional[str] = Field(None, description="Legacy: Correct answer text (for short/long questions)")
     correct_option_id: Optional[str] = Field(None, description="For MCQs: Correct option ID (A, B, C, or D)")
@@ -23,6 +24,7 @@ class QuestionUpdate(BaseModel):
     text: Optional[str] = None
     type: Optional[str] = None
     slide_number: Optional[int] = None
+    question_order: Optional[int] = None
     options: Optional[Dict[str, str]] = None
     correct_answer: Optional[str] = None
     correct_option_id: Optional[str] = None

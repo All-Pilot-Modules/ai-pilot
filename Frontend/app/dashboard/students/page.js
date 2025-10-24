@@ -9,7 +9,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Users, AlertCircle, X, Calendar, Clock, Award, BookOpen, TrendingUp, User, Edit, Trash2, MoreHorizontal, UserPlus, Mail, Phone, MapPin, Save, CheckCircle, XCircle, HelpCircle, List, ExternalLink, Filter, SortAsc, SortDesc, Download, FileText, FileJson, GraduationCap, Target, BarChart3, Activity, Zap } from "lucide-react";
+import { Plus, Search, Users, AlertCircle, X, Calendar, Clock, Award, BookOpen, TrendingUp, User, Edit, Trash2, MoreHorizontal, UserPlus, Save, CheckCircle, XCircle, HelpCircle, List, ExternalLink, Filter, SortAsc, SortDesc, Download, FileText, FileJson, GraduationCap, Target, BarChart3, Activity, Zap } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { apiClient } from "@/lib/auth";
@@ -110,8 +110,7 @@ function StudentsPageContent() {
               if (!studentMap.has(studentKey)) {
                 studentMap.set(studentKey, {
                   id: answer.student_id,
-                  name: answer.student_id, // Use student_id as name for now
-                  email: answer.student_id, // Student ID might be email or we'll use it as identifier
+                  name: answer.student_id, // Display student banner ID as name
                   student_id: answer.student_id,
                   last_access: answer.submitted_at || new Date().toISOString()
                 });
@@ -245,9 +244,8 @@ function StudentsPageContent() {
     
     // Apply search filter
     if (searchTerm.trim() !== '') {
-      filtered = filtered.filter(student => 
+      filtered = filtered.filter(student =>
         student.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         student.student_id?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
@@ -415,13 +413,51 @@ function StudentsPageContent() {
 
   if (!moduleName) {
     return (
-      <div className="p-8 text-center">
-        <h1 className="text-xl mb-4">No Module Selected</h1>
-        <p className="text-muted-foreground mb-4">Please specify a module using the ?module parameter</p>
-        <Button asChild>
-          <Link href="/dashboard">Go to Dashboard</Link>
-        </Button>
-      </div>
+      <SidebarProvider>
+        <AppSidebar variant="inset" />
+        <SidebarInset>
+          <SiteHeader />
+          <div className="flex flex-1 flex-col items-center justify-center p-8">
+            <div className="max-w-2xl w-full">
+              <div className="text-center mb-8">
+                <Users className="w-16 h-16 text-primary mx-auto mb-4" />
+                <h1 className="text-3xl font-bold mb-2">Select a Module</h1>
+                <p className="text-muted-foreground">
+                  Choose a module from the sidebar to view student performance and analytics
+                </p>
+              </div>
+              <Card className="border-2 border-dashed">
+                <CardContent className="p-8 text-center">
+                  <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">How to get started</h3>
+                  <ol className="text-left space-y-2 text-muted-foreground max-w-md mx-auto">
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold text-primary">1.</span>
+                      <span>Click the <strong>Module selector</strong> in the sidebar</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold text-primary">2.</span>
+                      <span>Choose a module from the dropdown</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold text-primary">3.</span>
+                      <span>View student performance and progress</span>
+                    </li>
+                  </ol>
+                  <div className="mt-6">
+                    <Button asChild variant="outline">
+                      <Link href="/mymodules">
+                        <BookOpen className="w-4 h-4 mr-2" />
+                        View My Modules
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </SidebarInset>
+      </SidebarProvider>
     );
   }
 
@@ -545,7 +581,7 @@ function StudentsPageContent() {
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        placeholder="Search by name, email, or student ID..."
+                        placeholder="Search by student ID..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-10"

@@ -227,11 +227,17 @@ export default function MyModules() {
                       <Input
                         id="name"
                         value={formData.name}
-                        onChange={(e) => setFormData({...formData, name: e.target.value})}
-                        placeholder="Enter module name"
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\s/g, '');
+                          setFormData({...formData, name: value});
+                        }}
+                        placeholder="Enter module name (no spaces)"
                         required
+                        pattern="[^\s]+"
+                        title="Module name cannot contain spaces"
                         className="mt-1"
                       />
+                      <p className="text-xs text-muted-foreground mt-1">No spaces allowed. Use hyphens or underscores instead.</p>
                     </div>
                     <div>
                       <Label htmlFor="description">Description</Label>

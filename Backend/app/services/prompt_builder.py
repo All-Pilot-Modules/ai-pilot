@@ -10,7 +10,7 @@ def build_mcq_feedback_prompt(
     options: Dict[str, str],
     student_answer: str,
     correct_answer: str,
-    is_correct: bool,
+    is_correct: Optional[bool],
     rubric: Dict[str, Any],
     rag_context: Optional[Dict[str, Any]] = None
 ) -> str:
@@ -21,8 +21,8 @@ def build_mcq_feedback_prompt(
         question_text: The question being answered
         options: Available options (dict of option_key -> option_text)
         student_answer: Student's selected option
-        correct_answer: Correct option key
-        is_correct: Whether the answer is correct
+        correct_answer: Correct option key (can be empty string if not set)
+        is_correct: Whether the answer is correct (None if no correct answer set)
         rubric: Rubric configuration
         rag_context: Retrieved course material context
 
@@ -56,13 +56,23 @@ def build_mcq_feedback_prompt(
     prompt_parts.append("")
     prompt_parts.append(f"Student Selected: {student_answer} - {options.get(student_answer, 'N/A')}")
     prompt_parts.append("")
-    prompt_parts.append(f"[INTERNAL - For AI only] Correct Answer: {correct_answer}. The student's answer is {'CORRECT' if is_correct else 'INCORRECT'}.")
-    prompt_parts.append("")
-    prompt_parts.append("⚠️ IMPORTANT: NEVER reveal the correct answer directly in your feedback. Instead, provide:")
-    prompt_parts.append("- Comprehensive hints that guide the student toward understanding")
-    prompt_parts.append("- Conceptual explanations of the topic")
-    prompt_parts.append("- Reasoning about why their choice may or may not be optimal")
-    prompt_parts.append("- Guidance to help them discover the answer through learning")
+
+    # Handle case where correct answer is not set
+    if is_correct is None:
+        prompt_parts.append("⚠️ NOTE: No correct answer has been set for this question yet.")
+        prompt_parts.append("Please provide general feedback on the student's response:")
+        prompt_parts.append("- Analyze their reasoning based on the question context")
+        prompt_parts.append("- Provide thoughtful insights about the topic")
+        prompt_parts.append("- Help them think critically about their choice")
+        prompt_parts.append("- Since correctness cannot be determined, focus on learning and conceptual understanding")
+    else:
+        prompt_parts.append(f"[INTERNAL - For AI only] Correct Answer: {correct_answer}. The student's answer is {'CORRECT' if is_correct else 'INCORRECT'}.")
+        prompt_parts.append("")
+        prompt_parts.append("⚠️ IMPORTANT: NEVER reveal the correct answer directly in your feedback. Instead, provide:")
+        prompt_parts.append("- Comprehensive hints that guide the student toward understanding")
+        prompt_parts.append("- Conceptual explanations of the topic")
+        prompt_parts.append("- Reasoning about why their choice may or may not be optimal")
+        prompt_parts.append("- Guidance to help them discover the answer through learning")
     prompt_parts.append("")
 
     # 3. RAG context if available
@@ -84,7 +94,9 @@ def build_mcq_feedback_prompt(
     explain_incorrect = mcq_settings.get("explain_incorrect", True)
     show_all_options = mcq_settings.get("show_all_options_analysis", False)
 
-    if show_all_options:
+    if is_correct is None:
+        prompt_parts.append("Provide thoughtful analysis of the student's choice and help them think about the concept being tested.")
+    elif show_all_options:
         prompt_parts.append("Provide conceptual analysis to help the student understand the topic better, WITHOUT stating which option is correct.")
     elif is_correct and explain_correct:
         prompt_parts.append("Explain why the selected answer demonstrates good understanding and reinforce the key concepts.")
@@ -99,9 +111,17 @@ def build_mcq_feedback_prompt(
 
     prompt_parts.append("Please provide feedback in this exact JSON format:")
     prompt_parts.append("{")
-    prompt_parts.append(f'  "is_correct": {str(is_correct).lower()},')
-    prompt_parts.append(f'  "correctness_score": {100 if is_correct else "score_0_to_100"},')
-    prompt_parts.append('  "explanation": "Clear explanation of why the answer is correct/incorrect",')
+
+    # Handle is_correct based on whether we have a correct answer
+    if is_correct is None:
+        prompt_parts.append('  "is_correct": null,')
+        prompt_parts.append('  "correctness_score": null,')
+        prompt_parts.append('  "explanation": "Thoughtful analysis of the student\'s response (no correct answer available to compare)",')
+    else:
+        prompt_parts.append(f'  "is_correct": {str(is_correct).lower()},')
+        prompt_parts.append(f'  "correctness_score": {100 if is_correct else "score_0_to_100"},')
+        prompt_parts.append('  "explanation": "Clear explanation of why the answer is correct/incorrect",')
+
     if rag_context and rag_context.get("has_context") and include_doc_locations:
         prompt_parts.append('  "improvement_hint": "Specific guidance with EXACT document reference (e.g., \'Review Lab 6, Page 3 on Earth\'s Processor\' or \'See Slide 5 in Lecture 2\')",')
     else:
@@ -198,13 +218,25 @@ def build_text_feedback_prompt(
     prompt_parts.append("")
     prompt_parts.append("Student Answer: " + student_answer)
     prompt_parts.append("")
-    prompt_parts.append(f"[INTERNAL - For AI only] Reference Answer: {reference_answer}")
-    prompt_parts.append("")
+
+    # Handle case where no reference answer is available
+    has_reference = reference_answer and reference_answer != "No reference answer provided"
+
+    if has_reference:
+        prompt_parts.append(f"[INTERNAL - For AI only] Reference Answer: {reference_answer}")
+        prompt_parts.append("")
+    else:
+        prompt_parts.append("⚠️ NOTE: No reference answer has been set for this question.")
+        prompt_parts.append("Provide feedback based on general educational standards, clarity, coherence, and demonstrated understanding.")
+        prompt_parts.append("")
+
+    # CRITICAL: Always include this instruction regardless of whether we have a reference answer
     prompt_parts.append("⚠️ IMPORTANT: NEVER reveal the reference answer or give away the solution directly. Instead, provide:")
     prompt_parts.append("- Comprehensive hints and guiding questions")
     prompt_parts.append("- Conceptual explanations of relevant topics")
     prompt_parts.append("- Specific guidance on what aspects to explore or reconsider")
     prompt_parts.append("- Encouragement to think critically about the subject matter")
+    prompt_parts.append("Your goal is to help the student LEARN and DISCOVER the answer themselves, not to give them the answer to copy.")
     prompt_parts.append("")
 
     # 3. RAG context if available
@@ -252,8 +284,15 @@ def build_text_feedback_prompt(
 
     prompt_parts.append("Please provide detailed feedback in this exact JSON format:")
     prompt_parts.append("{")
-    prompt_parts.append('  "is_correct": "true/false (true if substantially correct)",')
-    prompt_parts.append('  "correctness_score": "score_from_0_to_100",')
+
+    # Adjust correctness fields based on whether we have a reference answer
+    if has_reference:
+        prompt_parts.append('  "is_correct": "true/false (true if substantially correct)",')
+        prompt_parts.append('  "correctness_score": "score_from_0_to_100",')
+    else:
+        prompt_parts.append('  "is_correct": null,  // No reference answer available to determine correctness')
+        prompt_parts.append('  "correctness_score": null,  // No reference answer available to score')
+
     prompt_parts.append('  "explanation": "Detailed analysis of the student\'s response",')
     prompt_parts.append('  "strengths": ["What the student got right - array of strings"],')
     prompt_parts.append('  "weaknesses": ["Areas for improvement - array of strings"],')
