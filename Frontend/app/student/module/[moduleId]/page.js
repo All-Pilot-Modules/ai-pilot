@@ -989,7 +989,7 @@ function StudentModuleContent() {
                                     Question {index + 1} of {questions.length}
                                   </Badge>
                                 </div>
-                                <p className="text-base text-gray-900 dark:text-gray-100 leading-relaxed">
+                                <p className="text-base text-gray-900 dark:text-gray-100 leading-relaxed whitespace-pre-wrap">
                                   {question.text}
                                 </p>
                               </div>
@@ -1012,7 +1012,7 @@ function StudentModuleContent() {
                                 {question.type === 'mcq' && feedback.selected_option && (
                                   <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
                                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Your answer:</p>
-                                    <p className="text-base font-medium text-gray-900 dark:text-gray-100">
+                                    <p className="text-base font-medium text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
                                       {feedback.selected_option}. {feedback.available_options?.[feedback.selected_option]}
                                     </p>
                                   </div>

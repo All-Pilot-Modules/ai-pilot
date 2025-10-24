@@ -781,7 +781,7 @@ function QuestionsPageContent() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-foreground font-medium mb-3 leading-relaxed">
+                          <p className="text-foreground font-medium mb-3 leading-relaxed whitespace-pre-wrap">
                             {question.text}
                           </p>
                           {question.image_url && (
@@ -813,7 +813,7 @@ function QuestionsPageContent() {
                                     }`}>
                                       {key}
                                     </span>
-                                    <span className={`flex-1 ${isCorrect ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>{option}</span>
+                                    <span className={`flex-1 whitespace-pre-wrap ${isCorrect ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>{option}</span>
                                     {isCorrect && (
                                       <div className="ml-auto flex items-center gap-1.5 text-green-700 dark:text-green-400">
                                         <CheckCircle className="w-4 h-4" />
@@ -831,7 +831,7 @@ function QuestionsPageContent() {
                                 <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-500 mt-0.5 flex-shrink-0" />
                                 <div className="flex-1">
                                   <p className="text-xs font-bold text-green-700 dark:text-green-400 mb-1.5">Correct Answer:</p>
-                                  <p className="text-sm font-medium text-gray-900 dark:text-white">{question.correct_answer}</p>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white whitespace-pre-wrap">{question.correct_answer}</p>
                                 </div>
                               </div>
                             </div>

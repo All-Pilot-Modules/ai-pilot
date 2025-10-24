@@ -258,7 +258,7 @@ function StudentAssignmentContent() {
             <CardContent>
               <div className="space-y-4">
                 <div className="prose dark:prose-invert max-w-none">
-                  <p className="text-lg leading-relaxed">{question?.text}</p>
+                  <p className="text-lg leading-relaxed whitespace-pre-wrap">{question?.text}</p>
                 </div>
 
                 {question?.learning_outcome && (

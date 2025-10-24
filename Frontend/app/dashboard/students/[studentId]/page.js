@@ -943,7 +943,7 @@ function StudentDetailPageContent() {
                                 </td>
                                 <td className="p-5 max-w-md border-r border-slate-100 dark:border-slate-700">
                                   <div className="space-y-2">
-                                    <p className="text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200">{questionData.question_text}</p>
+                                    <p className="text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{questionData.question_text}</p>
                                     {questionData.answered_at && (
                                       <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                                         <Clock className="w-3 h-3" />

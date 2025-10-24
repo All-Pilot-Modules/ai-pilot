@@ -533,7 +533,7 @@ export default function StudentTestPage() {
                 <div className="space-y-4">
                   {/* Question Text */}
                   <div className="prose dark:prose-invert max-w-none">
-                    <p className="text-lg leading-relaxed">{currentQ?.text}</p>
+                    <p className="text-lg leading-relaxed whitespace-pre-wrap">{currentQ?.text}</p>
                   </div>
 
                   {/* Learning Outcome */}
@@ -593,7 +593,7 @@ export default function StudentTestPage() {
                                 className="flex-1 cursor-pointer text-base leading-relaxed"
                               >
                                 <span className="font-semibold mr-3 text-blue-600">{key}.</span>
-                                <span className={isSelected ? 'text-blue-900 dark:text-blue-100' : ''}>{option}</span>
+                                <span className={`whitespace-pre-wrap ${isSelected ? 'text-blue-900 dark:text-blue-100' : ''}`}>{option}</span>
                               </Label>
                             </div>
                           );
