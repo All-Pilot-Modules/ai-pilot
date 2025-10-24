@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingCard } from "@/components/ui/loading-overlay";
-import { 
+import {
   ArrowLeft,
   Clock,
   CheckCircle,
@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "@/lib/auth";
 
-export default function StudentAssignmentPage() {
+function StudentAssignmentContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -430,5 +430,13 @@ export default function StudentAssignmentPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function StudentAssignmentPage() {
+  return (
+    <Suspense fallback={<LoadingCard />}>
+      <StudentAssignmentContent />
+    </Suspense>
   );
 }

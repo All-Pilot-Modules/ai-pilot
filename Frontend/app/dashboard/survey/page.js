@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -23,7 +23,7 @@ import Link from 'next/link';
 import { apiClient } from '@/lib/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 
-export default function SurveyEditorPage() {
+function SurveyEditorContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const moduleId = searchParams.get('module');
@@ -361,5 +361,13 @@ export default function SurveyEditorPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function SurveyEditorPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <SurveyEditorContent />
+    </Suspense>
   );
 }

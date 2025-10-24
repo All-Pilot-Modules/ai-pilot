@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +32,7 @@ import SurveyTab from './SurveyTab';
 import ModuleConsentModal from '@/components/ModuleConsentModal';
 import { FullPageLoader } from '@/components/LoadingSpinner';
 
-export default function StudentModulePage() {
+function StudentModuleContent() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1333,5 +1333,13 @@ export default function StudentModulePage() {
         />
       )}
     </div>
+  );
+}
+
+export default function StudentModulePage() {
+  return (
+    <Suspense fallback={<FullPageLoader />}>
+      <StudentModuleContent />
+    </Suspense>
   );
 }
