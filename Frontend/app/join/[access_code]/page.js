@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Users, ExternalLink } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiClient } from "@/lib/auth";
 
 export default function AccessAssignment() {
@@ -24,19 +24,12 @@ export default function AccessAssignment() {
 
   const urlAccessCode = params.access_code;
 
-  useEffect(() => {
-    if (urlAccessCode) {
-      setFormData(prev => ({...prev, accessCode: urlAccessCode}));
-      fetchModule();
-    }
-  }, [urlAccessCode]);
-
-  const fetchModule = async () => {
+  const fetchModule = useCallback(async () => {
     try {
       // Search for module by access code
       const modules = await apiClient.get('/api/modules/all');
       const foundModule = modules.find(m => m.access_code === urlAccessCode);
-      
+
       if (foundModule) {
         setModule(foundModule);
       } else {
@@ -48,7 +41,14 @@ export default function AccessAssignment() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [urlAccessCode]);
+
+  useEffect(() => {
+    if (urlAccessCode) {
+      setFormData(prev => ({...prev, accessCode: urlAccessCode}));
+      fetchModule();
+    }
+  }, [urlAccessCode, fetchModule]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

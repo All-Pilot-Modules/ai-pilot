@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -37,13 +37,7 @@ export default function SurveyEditorPage() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
 
-  useEffect(() => {
-    if (moduleId) {
-      loadSurveyConfig();
-    }
-  }, [moduleId]);
-
-  const loadSurveyConfig = async () => {
+  const loadSurveyConfig = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -64,7 +58,13 @@ export default function SurveyEditorPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [moduleId]);
+
+  useEffect(() => {
+    if (moduleId) {
+      loadSurveyConfig();
+    }
+  }, [moduleId, loadSurveyConfig]);
 
   const handleAddQuestion = () => {
     const newQuestion = {

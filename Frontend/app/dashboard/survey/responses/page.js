@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -30,13 +30,7 @@ export default function SurveyResponsesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (moduleId) {
-      loadSurveyData();
-    }
-  }, [moduleId]);
-
-  const loadSurveyData = async () => {
+  const loadSurveyData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -64,7 +58,13 @@ export default function SurveyResponsesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [moduleId]);
+
+  useEffect(() => {
+    if (moduleId) {
+      loadSurveyData();
+    }
+  }, [moduleId, loadSurveyData]);
 
   const exportToCSV = () => {
     if (!responses || responses.length === 0 || !surveyConfig) return;
@@ -211,7 +211,7 @@ export default function SurveyResponsesPage() {
                 <ClipboardList className="w-16 h-16 mx-auto text-gray-400 mb-4" />
                 <p className="text-muted-foreground text-lg mb-2">No responses yet</p>
                 <p className="text-sm text-muted-foreground">
-                  Students haven't submitted any survey responses for this module yet.
+                  Students haven&apos;t submitted any survey responses for this module yet.
                 </p>
               </div>
             </CardContent>

@@ -9,7 +9,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ArrowLeft, User, Calendar, Clock, Award, BookOpen, TrendingUp, CheckCircle, XCircle, HelpCircle, List, Download, BarChart3, PieChart, Bot, FileDown, FileText, FileJson, ClipboardList, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { apiClient } from "@/lib/auth";
 
 function StudentDetailPageContent() {
@@ -34,13 +34,7 @@ function StudentDetailPageContent() {
   const [surveyResponse, setSurveyResponse] = useState(null);
   const [showSurvey, setShowSurvey] = useState(false);
 
-  useEffect(() => {
-    if (studentId && moduleName && isAuthenticated) {
-      fetchStudentDetails();
-    }
-  }, [studentId, moduleName, isAuthenticated]);
-
-  const fetchStudentDetails = async () => {
+  const fetchStudentDetails = useCallback(async () => {
     try {
       setLoadingData(true);
       setError('');
@@ -270,7 +264,13 @@ function StudentDetailPageContent() {
     } finally {
       setLoadingData(false);
     }
-  };
+  }, [user, studentId, moduleName]);
+
+  useEffect(() => {
+    if (studentId && moduleName && isAuthenticated) {
+      fetchStudentDetails();
+    }
+  }, [studentId, moduleName, isAuthenticated, fetchStudentDetails]);
 
   // Function to get real AI feedback from database
   const getAIFeedback = (answerId) => {
@@ -838,7 +838,7 @@ function StudentDetailPageContent() {
                             <ClipboardList className="w-16 h-16 mx-auto text-gray-400 mb-4" />
                             <p className="text-lg font-medium text-muted-foreground mb-2">No Survey Response Yet</p>
                             <p className="text-sm text-muted-foreground">
-                              This student hasn't submitted their feedback survey for this module.
+                              This student hasn&apos;t submitted their feedback survey for this module.
                             </p>
                           </div>
                         )}
