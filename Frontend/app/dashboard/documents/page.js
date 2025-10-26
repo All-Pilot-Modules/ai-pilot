@@ -918,7 +918,7 @@ function DocumentsContent() {
                             <p className="font-semibold mb-1">How it works:</p>
                             <ul className="list-disc list-inside space-y-1 text-purple-600 dark:text-purple-400">
                               <li>AI analyzes your document content</li>
-                              <li>Questions are generated and saved as "unreviewed"</li>
+                              <li>Questions are generated and saved as &quot;unreviewed&quot;</li>
                               <li>You review and approve before students see them</li>
                               <li>Maximum 100 total questions per generation</li>
                             </ul>
