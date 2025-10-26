@@ -75,10 +75,10 @@ function QuestionReviewContent() {
         // Fetch module info to get the module name (fallback if not in URL)
         const modules = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
         console.log("📚 Found modules:", modules.length);
-        const module = modules.find(m => m.id === moduleId);
-        if (module) {
-          console.log("✅ Module found:", module.name);
-          setModuleName(module.name);
+        const foundModule = modules.find(m => m.id === moduleId);
+        if (foundModule) {
+          console.log("✅ Module found:", foundModule.name);
+          setModuleName(foundModule.name);
         } else {
           console.error("❌ Module not found for ID:", moduleId);
         }

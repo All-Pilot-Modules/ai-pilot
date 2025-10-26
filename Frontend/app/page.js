@@ -205,10 +205,10 @@ export default function Home() {
               </div>
             ) : modules.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {modules.slice(0, 6).map((module, index) => (
-                  <Card key={module.id} className="border-border bg-card/50 backdrop-blur-sm shadow-md hover:shadow-xl transition-all group cursor-pointer">
+                {modules.slice(0, 6).map((moduleItem, index) => (
+                  <Card key={moduleItem.id} className="border-border bg-card/50 backdrop-blur-sm shadow-md hover:shadow-xl transition-all group cursor-pointer">
                     <CardContent className="p-6">
-                      <Link href={`/dashboard?module=${encodeURIComponent(module.name)}`}>
+                      <Link href={`/dashboard?module=${encodeURIComponent(moduleItem.name)}`}>
                         <div className="flex items-start justify-between mb-4">
                           <div className={`w-14 h-14 bg-gradient-to-br ${
                             index % 4 === 0 ? 'from-blue-500 to-blue-600' :
@@ -221,10 +221,10 @@ export default function Home() {
                           <Badge variant="secondary" className="text-xs">Active</Badge>
                         </div>
                         <h3 className="text-xl font-bold text-foreground mb-2 group-hover:text-primary transition-colors">
-                          {module.name}
+                          {moduleItem.name}
                         </h3>
                         <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                          {module.description || 'No description available'}
+                          {moduleItem.description || 'No description available'}
                         </p>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
