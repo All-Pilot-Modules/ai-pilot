@@ -1,7 +1,16 @@
-from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Text, Index
+from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, Text, Index, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
 import uuid
+from datetime import datetime
+
+
+class QuestionStatus:
+    """Question status constants for the review workflow"""
+    UNREVIEWED = "unreviewed"  # AI-generated, pending teacher review
+    ACTIVE = "active"          # Approved by teacher, visible to students
+    ARCHIVED = "archived"      # Hidden but not deleted
+
 
 class Question(Base):
     __tablename__ = "questions"
@@ -25,7 +34,14 @@ class Question(Base):
 
     has_text_input = Column(Boolean, default=False)
 
+    # AI Generation and Review Workflow Fields
+    status = Column(String, default=QuestionStatus.ACTIVE, nullable=False)
+    is_ai_generated = Column(Boolean, default=False, nullable=False)
+    generated_at = Column(TIMESTAMP, nullable=True)
+
     __table_args__ = (
         Index('ix_questions_module_id', 'module_id'),
         Index('ix_questions_document_id', 'document_id'),
+        Index('ix_questions_status', 'status'),
+        Index('ix_questions_module_status', 'module_id', 'status'),
     )

@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Form, UploadFile, File, HTTPException, Depends, Query
+from fastapi import APIRouter, Form, UploadFile, File, HTTPException, Depends, Query, Body
 from fastapi.responses import FileResponse
-from uuid import UUID  
+from uuid import UUID
 from sqlalchemy.orm import Session
+from urllib.parse import quote
 from app.schemas.document import DocumentOut, DocumentUpdate
+from app.schemas.question import QuestionGenerationRequest, QuestionGenerationResponse, QuestionCreate
 from app.services.document import handle_document_upload
 from app.crud.document import (
     create_document,
@@ -12,8 +14,11 @@ from app.crud.document import (
     delete_document,
     update_document
 )
+from app.crud.question import create_question
 from app.database import get_db
 from app.services.document import reparse_testbank_document
+from app.services.question_generation import question_generation_service
+from app.models.module import Module
 router = APIRouter()
 
 @router.post("/upload", response_model=DocumentOut)
@@ -130,11 +135,118 @@ def download_document(
 
 @router.post("/documents/{doc_id}/reparse")
 def reparse_document(
-    doc_id: UUID, 
+    doc_id: UUID,
     db: Session = Depends(get_db)
 ):
     doc = fetch_document_by_id(db, str(doc_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    
+
     return reparse_testbank_document(db, doc_id)
+
+
+@router.post("/documents/{doc_id}/generate-questions", response_model=QuestionGenerationResponse)
+def generate_questions_from_document(
+    doc_id: UUID,
+    request: QuestionGenerationRequest = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Generate AI questions from a RAG-indexed document
+
+    This endpoint:
+    1. Validates the document is RAG-indexed
+    2. Uses OpenAI to generate questions from document chunks
+    3. Saves questions to database with status='unreviewed'
+    4. Returns a response with review URL
+
+    Args:
+        doc_id: UUID of the document to generate questions from
+        request: Question generation parameters (num_short, num_long, num_mcq)
+        db: Database session
+
+    Returns:
+        QuestionGenerationResponse with generated count and review URL
+
+    Raises:
+        404: Document not found
+        400: Document not RAG-indexed or invalid request
+        500: OpenAI API error or generation failure
+    """
+    # Validate document exists
+    doc = fetch_document_by_id(db, str(doc_id))
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Validate document is RAG-indexed
+    if doc.processing_status not in ["embedded", "indexed"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Document '{doc.title}' is not RAG-indexed. "
+                   f"Current status: {doc.processing_status}. "
+                   f"Please wait for the document to be fully processed before generating questions."
+        )
+
+    try:
+        # Generate questions using the service
+        generated_questions = question_generation_service.generate_questions_from_document(
+            db=db,
+            document_id=doc_id,
+            num_short=request.num_short,
+            num_long=request.num_long,
+            num_mcq=request.num_mcq
+        )
+
+        # Save all generated questions to database with status='unreviewed'
+        saved_count = 0
+        for question_data in generated_questions:
+            try:
+                # Convert dict to QuestionCreate schema
+                question_create = QuestionCreate(**question_data)
+                create_question(db, question_create)
+                saved_count += 1
+            except Exception as e:
+                print(f"Warning: Failed to save question: {str(e)}")
+                # Continue saving other questions even if one fails
+                continue
+
+        if saved_count == 0:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to save any generated questions to database"
+            )
+
+        # Count questions by type
+        num_short_generated = sum(1 for q in generated_questions if q["type"] == "short")
+        num_long_generated = sum(1 for q in generated_questions if q["type"] == "long")
+        num_mcq_generated = sum(1 for q in generated_questions if q["type"] == "mcq")
+
+        # Get module name for review URL
+        module = db.query(Module).filter(Module.id == doc.module_id).first()
+        module_name = module.name if module else ""
+
+        # Construct review URL with module name for proper browser back button support
+        review_url = f"/dashboard/questions/review?module_id={doc.module_id}&module_name={quote(module_name)}&status=unreviewed"
+
+        return QuestionGenerationResponse(
+            generated_count=saved_count,
+            num_short=num_short_generated,
+            num_long=num_long_generated,
+            num_mcq=num_mcq_generated,
+            document_id=doc_id,
+            module_id=doc.module_id,
+            review_url=review_url,
+            message=f"Successfully generated {saved_count} questions from '{doc.title}'. "
+                   f"Please review them before making them available to students."
+        )
+
+    except ValueError as e:
+        # Handle validation errors from service
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        # Handle unexpected errors
+        print(f"Error generating questions: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate questions: {str(e)}"
+        )

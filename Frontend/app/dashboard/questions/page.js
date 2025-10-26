@@ -22,7 +22,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { 
+import {
   HelpCircle,
   Plus,
   Search,
@@ -35,7 +35,10 @@ import {
   AlignLeft,
   Target,
   Brain,
-  Image
+  Image,
+  Sparkles,
+  AlertCircle,
+  ArrowRight
 } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, Suspense } from "react";
@@ -49,6 +52,7 @@ function QuestionsPageContent() {
   const [questions, setQuestions] = useState([]);
   const [currentModule, setCurrentModule] = useState(null);
   const [moduleDocument, setModuleDocument] = useState(null);
+  const [unreviewedCount, setUnreviewedCount] = useState(0);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -107,11 +111,20 @@ function QuestionsPageContent() {
           });
         }
 
-        // Fetch questions for this module
+        // Fetch questions for this module (only active questions, not unreviewed)
         console.log('Fetching questions for module:', foundModule.id);
-        const questionsData = await apiClient.get(`/api/questions/by-module?module_id=${foundModule.id}`);
+        const questionsData = await apiClient.get(`/api/questions/by-module?module_id=${foundModule.id}&status=active`);
         console.log('Questions data received:', questionsData);
         setQuestions(questionsData || []);
+
+        // Fetch unreviewed questions count
+        try {
+          const unreviewedData = await apiClient.get(`/api/questions/by-module?module_id=${foundModule.id}&status=unreviewed`);
+          setUnreviewedCount(unreviewedData?.length || 0);
+        } catch (error) {
+          console.error('Failed to fetch unreviewed count:', error);
+          setUnreviewedCount(0);
+        }
       } else {
         console.log('Module not found for name:', moduleName, 'in modules:', moduleData);
       }
@@ -184,7 +197,9 @@ function QuestionsPageContent() {
             }), {})
           : null,
         correct_option_id: questionForm.type === "mcq" ? questionForm.correct_option_id : null,
-        correct_answer: questionForm.type !== "mcq" ? questionForm.correct_answer : null
+        correct_answer: questionForm.type !== "mcq" ? questionForm.correct_answer : null,
+        status: 'active',  // Manually created questions are immediately active
+        is_ai_generated: false  // Mark as manually created
       };
 
       console.log('📝 Creating question with payload:', payload);
@@ -515,6 +530,44 @@ function QuestionsPageContent() {
                 </div>
               </div>
             </div>
+
+            {/* Unreviewed Questions Alert */}
+            {unreviewedCount > 0 && (
+              <Card className="mb-6 border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/20">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
+                        <Sparkles className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-purple-900 dark:text-purple-100">
+                            {unreviewedCount} AI-Generated Question{unreviewedCount > 1 ? 's' : ''} Pending Review
+                          </h3>
+                          <Badge className="bg-purple-600 text-white">
+                            {unreviewedCount}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
+                          Review and approve AI-generated questions before they become available to students
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      asChild
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      <Link href={`/dashboard/questions/review?module_id=${currentModule?.id}&module_name=${encodeURIComponent(moduleName)}&status=unreviewed`}>
+                        <AlertCircle className="w-4 h-4 mr-2" />
+                        Review Questions
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Main Content */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

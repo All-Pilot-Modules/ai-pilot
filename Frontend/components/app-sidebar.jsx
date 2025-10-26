@@ -33,7 +33,19 @@ export function AppSidebar(props) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const module = searchParams?.get('module');
+  // Check for 'module' param first, fall back to 'module_name' (used in review page)
+  const module = searchParams?.get('module') || searchParams?.get('module_name');
+
+  // Debug logging
+  useEffect(() => {
+    if (pathname.includes('/review')) {
+      console.log('📍 Sidebar on review page - module:', module, 'from params:', {
+        module: searchParams?.get('module'),
+        module_name: searchParams?.get('module_name')
+      });
+    }
+  }, [pathname, module, searchParams]);
+
   const { user, logout } = useAuth();
   const [modules, setModules] = useState([]);
   const [loadingModules, setLoadingModules] = useState(false);

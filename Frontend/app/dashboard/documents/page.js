@@ -30,7 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Upload, FolderOpen, File, FileText, FileVideo, Image as ImageIcon, Archive, Calendar, Edit3, Trash2, Download, Search, BookOpen, FileCheck, Clock, HardDrive, TrendingUp, Eye, Share2, ChevronRight, Plus, X, CheckCircle2, Loader2, AlertCircle, Database } from "lucide-react";
+import { Upload, FolderOpen, File, FileText, FileVideo, Image as ImageIcon, Archive, Calendar, Edit3, Trash2, Download, Search, BookOpen, FileCheck, Clock, HardDrive, TrendingUp, Eye, Share2, ChevronRight, Plus, X, CheckCircle2, Loader2, AlertCircle, Database, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/auth";
 import { SkeletonDocumentCard } from "@/components/ui/skeleton";
@@ -55,6 +55,10 @@ function DocumentsContent() {
   const [uploadForm, setUploadForm] = useState({ title: "", file: null });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState(null);
+  const [isGenerateOpen, setIsGenerateOpen] = useState(false);
+  const [selectedDocForGeneration, setSelectedDocForGeneration] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationForm, setGenerationForm] = useState({ num_short: 0, num_long: 0, num_mcq: 0 });
 
   const fetchModuleAndDocuments = useCallback(async () => {
     try {
@@ -252,6 +256,45 @@ function DocumentsContent() {
     } finally {
       setIsDeleting(null);
       setDocumentToDelete(null);
+    }
+  };
+
+  const handleGenerateQuestions = async (e) => {
+    e.preventDefault();
+    if (!selectedDocForGeneration) return;
+
+    const total = generationForm.num_short + generationForm.num_long + generationForm.num_mcq;
+    if (total === 0) {
+      alert("Please specify at least one question to generate");
+      return;
+    }
+    if (total > 100) {
+      alert("Cannot generate more than 100 questions at once");
+      return;
+    }
+
+    try {
+      setIsGenerating(true);
+      const response = await apiClient.post(
+        `/api/documents/${selectedDocForGeneration.id}/generate-questions`,
+        generationForm
+      );
+
+      // Close modal
+      setIsGenerateOpen(false);
+      setSelectedDocForGeneration(null);
+      setGenerationForm({ num_short: 0, num_long: 0, num_mcq: 0 });
+
+      // Show success message
+      alert(`Successfully generated ${response.generated_count} questions! Redirecting to review page...`);
+
+      // Redirect to review page
+      window.location.href = response.review_url;
+    } catch (error) {
+      console.error("Generate error:", error);
+      alert(error.response?.data?.detail || "Failed to generate questions. Please try again.");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -694,6 +737,22 @@ function DocumentsContent() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
+                            {/* Show AI Generate button only for RAG-indexed documents */}
+                            {(doc.processing_status === 'embedded' || doc.processing_status === 'indexed') && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setSelectedDocForGeneration(doc);
+                                  setGenerationForm({ num_short: 0, num_long: 0, num_mcq: 0 });
+                                  setIsGenerateOpen(true);
+                                }}
+                                className="hover:bg-purple-100 dark:hover:bg-purple-900/30 hover:text-purple-600 dark:hover:text-purple-400"
+                              >
+                                <Sparkles className="h-4 w-4 mr-1" />
+                                AI Generate
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"
@@ -832,6 +891,135 @@ function DocumentsContent() {
                   <Button onClick={handleEdit} className="flex-1">
                     <FileCheck className="w-4 h-4 mr-2" />
                     Save Changes
+                  </Button>
+                </DrawerFooter>
+              </DrawerContent>
+            </Drawer>
+
+            {/* AI Question Generation Drawer */}
+            <Drawer open={isGenerateOpen} onOpenChange={setIsGenerateOpen}>
+              <DrawerContent className="max-w-2xl mx-auto">
+                <DrawerHeader className="border-b">
+                  <DrawerTitle className="text-2xl flex items-center gap-2">
+                    <Sparkles className="w-6 h-6 text-purple-500" />
+                    AI Question Generation
+                  </DrawerTitle>
+                  <DrawerDescription className="text-base">
+                    Generate questions from: <strong>{selectedDocForGeneration?.title}</strong>
+                  </DrawerDescription>
+                </DrawerHeader>
+                <div className="p-6">
+                  <form onSubmit={handleGenerateQuestions} className="space-y-6">
+                    <div className="space-y-4">
+                      <div className="p-4 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-5 h-5 text-purple-600 dark:text-purple-400 mt-0.5" />
+                          <div className="text-sm text-purple-700 dark:text-purple-300">
+                            <p className="font-semibold mb-1">How it works:</p>
+                            <ul className="list-disc list-inside space-y-1 text-purple-600 dark:text-purple-400">
+                              <li>AI analyzes your document content</li>
+                              <li>Questions are generated and saved as "unreviewed"</li>
+                              <li>You review and approve before students see them</li>
+                              <li>Maximum 100 total questions per generation</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="num-short" className="text-base font-semibold">
+                          Short Answer Questions (1-2 sentences)
+                        </Label>
+                        <Input
+                          id="num-short"
+                          type="number"
+                          min="0"
+                          max="50"
+                          value={generationForm.num_short}
+                          onChange={(e) => setGenerationForm({ ...generationForm, num_short: parseInt(e.target.value) || 0 })}
+                          className="text-base"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          0-50 questions
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="num-long" className="text-base font-semibold">
+                          Long Answer Questions (1-2 paragraphs)
+                        </Label>
+                        <Input
+                          id="num-long"
+                          type="number"
+                          min="0"
+                          max="50"
+                          value={generationForm.num_long}
+                          onChange={(e) => setGenerationForm({ ...generationForm, num_long: parseInt(e.target.value) || 0 })}
+                          className="text-base"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          0-50 questions
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="num-mcq" className="text-base font-semibold">
+                          Multiple Choice Questions (4 options)
+                        </Label>
+                        <Input
+                          id="num-mcq"
+                          type="number"
+                          min="0"
+                          max="50"
+                          value={generationForm.num_mcq}
+                          onChange={(e) => setGenerationForm({ ...generationForm, num_mcq: parseInt(e.target.value) || 0 })}
+                          className="text-base"
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          0-50 questions
+                        </p>
+                      </div>
+
+                      <div className="p-3 bg-muted rounded-lg">
+                        <p className="text-sm font-medium">
+                          Total questions: <span className="text-lg font-bold text-primary">
+                            {generationForm.num_short + generationForm.num_long + generationForm.num_mcq}
+                          </span>
+                          <span className="text-muted-foreground ml-2">/ 100 max</span>
+                        </p>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+                <DrawerFooter className="border-t flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsGenerateOpen(false);
+                      setSelectedDocForGeneration(null);
+                      setGenerationForm({ num_short: 0, num_long: 0, num_mcq: 0 });
+                    }}
+                    className="flex-1"
+                    disabled={isGenerating}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleGenerateQuestions}
+                    disabled={isGenerating || (generationForm.num_short + generationForm.num_long + generationForm.num_mcq === 0)}
+                    className="flex-1 bg-purple-600 hover:bg-purple-700"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Generate Questions
+                      </>
+                    )}
                   </Button>
                 </DrawerFooter>
               </DrawerContent>

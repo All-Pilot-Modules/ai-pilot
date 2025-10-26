@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
-from app.models.question import Question
+from app.models.question import Question, QuestionStatus
 from app.schemas.question import QuestionCreate, QuestionUpdate
 from uuid import UUID, uuid4
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 # ✅ Create a single question
 def create_question(db: Session, question_data: QuestionCreate) -> Question:
@@ -75,3 +75,86 @@ def delete_question(db: Session, question_id: UUID) -> Optional[Question]:
     db.delete(q)
     db.commit()
     return q
+
+
+# ✅ Get questions by status
+def get_questions_by_status(db: Session, module_id: UUID, status: str) -> List[Question]:
+    """
+    Get all questions for a module filtered by status
+
+    Args:
+        db: Database session
+        module_id: UUID of the module
+        status: Question status (unreviewed, active, archived)
+
+    Returns:
+        List of questions matching the status filter
+    """
+    return (
+        db.query(Question)
+        .filter(Question.module_id == module_id, Question.status == status)
+        .order_by(Question.question_order.nulls_last(), Question.id)
+        .all()
+    )
+
+
+# ✅ Approve a single question
+def approve_question(db: Session, question_id: UUID) -> Optional[Question]:
+    """
+    Approve a question by changing its status from 'unreviewed' to 'active'
+
+    Args:
+        db: Database session
+        question_id: UUID of the question to approve
+
+    Returns:
+        Updated question with status='active', or None if not found
+    """
+    question = get_question_by_id(db, question_id)
+    if not question:
+        return None
+
+    question.status = QuestionStatus.ACTIVE
+    db.commit()
+    db.refresh(question)
+    return question
+
+
+# ✅ Bulk approve multiple questions
+def bulk_approve_questions(db: Session, question_ids: List[UUID]) -> Dict[str, Any]:
+    """
+    Approve multiple questions at once by changing their status to 'active'
+
+    Args:
+        db: Database session
+        question_ids: List of question UUIDs to approve
+
+    Returns:
+        Dict with approved_count and failed_count
+    """
+    approved_count = 0
+    failed_count = 0
+
+    for question_id in question_ids:
+        try:
+            question = get_question_by_id(db, question_id)
+            if question:
+                question.status = QuestionStatus.ACTIVE
+                approved_count += 1
+            else:
+                failed_count += 1
+        except Exception as e:
+            print(f"Error approving question {question_id}: {str(e)}")
+            failed_count += 1
+
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"Error committing bulk approve: {str(e)}")
+        raise
+
+    return {
+        "approved_count": approved_count,
+        "failed_count": failed_count
+    }

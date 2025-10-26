@@ -1,20 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, UploadFile, File, Body
 from sqlalchemy.orm import Session
-from app.schemas.question import QuestionCreate, QuestionUpdate, QuestionOut
+from app.schemas.question import (
+    QuestionCreate, QuestionUpdate, QuestionOut,
+    BulkApproveRequest, BulkApproveResponse
+)
 from app.crud.question import (
     create_question,
     get_questions_by_document_id,
     get_questions_by_module_id,
     get_question_by_id,
     update_question,
-    delete_question
+    delete_question,
+    approve_question,
+    bulk_approve_questions,
+    get_questions_by_status
 )
 from app.database import get_db
 from app.services.storage import storage_service
-from app.models.question import Question
+from app.models.question import Question, QuestionStatus
 from app.models.module import Module
 from uuid import UUID
-from typing import List
+from typing import List, Optional
 import os
 
 router = APIRouter()
@@ -38,10 +44,19 @@ def create_question_api(payload: QuestionCreate, db: Session = Depends(get_db)):
 def get_questions_for_document(document_id: UUID = Query(...), db: Session = Depends(get_db)):
     return get_questions_by_document_id(db, document_id)
 
-# ✅ Get all questions for a module
+# ✅ Get all questions for a module (with optional status filter)
 @router.get("/questions/by-module", response_model=List[QuestionOut])
-def get_questions_for_module(module_id: UUID = Query(...), db: Session = Depends(get_db)):
-    return get_questions_by_module_id(db, module_id)
+def get_questions_for_module(
+    module_id: UUID = Query(...),
+    status: Optional[str] = Query(None, description="Filter by status: unreviewed, active, archived"),
+    db: Session = Depends(get_db)
+):
+    if status:
+        # Get questions filtered by status
+        return get_questions_by_status(db, module_id, status)
+    else:
+        # Get all questions (default behavior - backwards compatible)
+        return get_questions_by_module_id(db, module_id)
 
 # ✅ Get a single question
 @router.get("/questions/{question_id}", response_model=QuestionOut)
@@ -196,3 +211,96 @@ def delete_question_image(question_id: UUID, db: Session = Depends(get_db)):
     except Exception as e:
         print(f"❌ Error deleting image: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to delete image: {str(e)}")
+
+
+# ✅ Approve a single question (change status from unreviewed to active)
+@router.put("/questions/{question_id}/approve", response_model=QuestionOut)
+def approve_question_api(question_id: UUID, db: Session = Depends(get_db)):
+    """
+    Approve a question by changing its status from 'unreviewed' to 'active'.
+    This makes the question visible to students.
+
+    Args:
+        question_id: UUID of the question to approve
+        db: Database session
+
+    Returns:
+        Updated question with status='active'
+
+    Raises:
+        404: Question not found
+        500: Database error
+    """
+    approved_question = approve_question(db, question_id)
+    if not approved_question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    return approved_question
+
+
+# ✅ Bulk approve multiple questions
+@router.post("/questions/bulk-approve", response_model=BulkApproveResponse)
+def bulk_approve_questions_api(
+    request: BulkApproveRequest = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Approve multiple questions at once by changing their status to 'active'.
+    Useful for batch approving AI-generated questions after review.
+
+    Args:
+        request: BulkApproveRequest with list of question IDs
+        db: Database session
+
+    Returns:
+        BulkApproveResponse with count of approved and failed questions
+
+    Raises:
+        400: Invalid request (empty list, too many questions)
+        500: Database error
+    """
+    result = bulk_approve_questions(db, request.question_ids)
+
+    return BulkApproveResponse(
+        approved_count=result["approved_count"],
+        failed_count=result["failed_count"],
+        message=f"Successfully approved {result['approved_count']} question(s). "
+               f"{result['failed_count']} failed." if result['failed_count'] > 0
+               else f"Successfully approved {result['approved_count']} question(s)."
+    )
+
+
+# ✅ Get questions by status (for review page)
+@router.get("/questions/status/{status}", response_model=List[QuestionOut])
+def get_questions_by_status_api(
+    status: str = Path(..., description="Status to filter by: unreviewed, active, or archived"),
+    module_id: Optional[UUID] = Query(None, description="Optional module ID to filter by"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all questions with a specific status, optionally filtered by module.
+
+    Args:
+        status: Question status (unreviewed, active, archived)
+        module_id: Optional module ID to filter results
+        db: Database session
+
+    Returns:
+        List of questions matching the status filter
+
+    Raises:
+        400: Invalid status value
+    """
+    # Validate status
+    valid_statuses = [QuestionStatus.UNREVIEWED, QuestionStatus.ACTIVE, QuestionStatus.ARCHIVED]
+    if status not in valid_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid status '{status}'. Must be one of: {', '.join(valid_statuses)}"
+        )
+
+    if module_id:
+        return get_questions_by_status(db, module_id, status)
+    else:
+        # Get all questions with this status across all modules
+        questions = db.query(Question).filter(Question.status == status).all()
+        return questions
