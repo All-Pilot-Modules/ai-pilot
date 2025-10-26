@@ -109,8 +109,8 @@ function DashboardContent() {
             console.log('No student answers yet');
           }
 
-          // Get questions count
-          const questionsData = await apiClient.get(`/api/questions/by-module?module_id=${currentModule.id}`);
+          // Get questions count (all questions for teacher dashboard)
+          const questionsData = await apiClient.get(`/api/questions/by-module?module_id=${currentModule.id}&status=all`);
           const questionsCount = Array.isArray(questionsData) ? questionsData.length : 0;
 
           // Get documents count (need teacher_id parameter)

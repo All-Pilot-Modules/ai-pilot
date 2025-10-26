@@ -48,22 +48,35 @@ def get_questions_for_document(document_id: UUID = Query(...), db: Session = Dep
 @router.get("/questions/by-module", response_model=List[QuestionOut])
 def get_questions_for_module(
     module_id: UUID = Query(...),
-    status: Optional[str] = Query(None, description="Filter by status: unreviewed, active, archived"),
+    status: Optional[str] = Query("active", description="Filter by status: unreviewed, active, archived, all"),
     db: Session = Depends(get_db)
 ):
-    if status:
-        # Get questions filtered by status
-        return get_questions_by_status(db, module_id, status)
-    else:
-        # Get all questions (default behavior - backwards compatible)
+    # Default to 'active' to protect students from seeing unreviewed questions
+    if status == "all":
+        # Teachers can explicitly request all questions
         return get_questions_by_module_id(db, module_id)
+    else:
+        # Get questions filtered by status (default: active)
+        return get_questions_by_status(db, module_id, status)
 
 # ✅ Get a single question
 @router.get("/questions/{question_id}", response_model=QuestionOut)
-def get_question_by_id_api(question_id: UUID, db: Session = Depends(get_db)):
+def get_question_by_id_api(
+    question_id: UUID,
+    include_unreviewed: bool = Query(False, description="Allow fetching unreviewed questions (teacher only)"),
+    db: Session = Depends(get_db)
+):
     question = get_question_by_id(db, question_id)
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
+
+    # Protect students from accessing unreviewed questions directly
+    if not include_unreviewed and question.status != QuestionStatus.ACTIVE:
+        raise HTTPException(
+            status_code=403,
+            detail="This question is not yet available. Please contact your teacher."
+        )
+
     return question
 
 # ✅ Update a question

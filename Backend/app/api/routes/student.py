@@ -21,7 +21,6 @@ from app.crud.student_answer import (
 from app.crud.module import get_module_by_access_code, get_module_by_id
 from app.models.module import Module
 from app.crud.document import get_documents_by_module, get_documents_by_module_for_students
-from app.crud.question import get_questions_by_module_id
 from app.database import get_db
 
 router = APIRouter()
@@ -169,13 +168,19 @@ def get_module_questions(
     db: Session = Depends(get_db)
 ):
     """
-    Get all questions for a module (this is the assignment)
+    Get all ACTIVE questions for a module (this is the assignment).
+    Students only see questions that have been approved by teachers.
     """
+    from app.crud.question import get_questions_by_status
+    from app.models.question import QuestionStatus
+
     module = get_module_by_id(db, module_id)
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
-    
-    questions = get_questions_by_module_id(db, module_id)
+
+    # SECURITY: Only return active questions to students
+    questions = get_questions_by_status(db, module_id, QuestionStatus.ACTIVE)
+    print(f"🔒 Student endpoint: Returning {len(questions)} active questions for module {module_id}")
     return questions
 
 # ❓ Get all questions for a document (assignment)
@@ -185,16 +190,23 @@ def get_assignment_questions(
     db: Session = Depends(get_db)
 ):
     """
-    Get all questions for a specific document/assignment
+    Get all ACTIVE questions for a specific document/assignment.
+    Students only see questions that have been approved by teachers.
     """
     from app.crud.document import get_document_by_id
-    from app.crud.question import get_questions_by_document_id
-    
+    from app.models.question import Question, QuestionStatus
+
     document = get_document_by_id(db, str(document_id))
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
-    
-    questions = get_questions_by_document_id(db, document_id)
+
+    # SECURITY: Only return active questions to students
+    questions = db.query(Question).filter(
+        Question.document_id == document_id,
+        Question.status == QuestionStatus.ACTIVE
+    ).order_by(Question.question_order.nulls_last(), Question.id).all()
+
+    print(f"🔒 Student endpoint: Returning {len(questions)} active questions for document {document_id}")
     return questions
 
 # ✅ Submit answer for a question with instant AI feedback
@@ -232,6 +244,14 @@ def submit_student_answer(
             "feedback": None,
             "message": "Answer submitted but question not found"
         }
+
+    # SECURITY: Check if question is active before accepting answer
+    from app.models.question import QuestionStatus
+    if question.status != QuestionStatus.ACTIVE:
+        raise HTTPException(
+            status_code=403,
+            detail="This question is not yet available. Please contact your teacher."
+        )
 
     module_id = str(question.module_id)
     module = get_module_by_id(db, module_id)
@@ -514,6 +534,20 @@ def save_student_answer(
     Save student answer as draft (auto-save functionality).
     This does NOT generate feedback - it only saves the answer.
     """
+    # SECURITY: Verify question is active before allowing save
+    from app.crud.question import get_question_by_id
+    from app.models.question import QuestionStatus
+
+    question = get_question_by_id(db, str(answer_data.question_id))
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+
+    if question.status != QuestionStatus.ACTIVE:
+        raise HTTPException(
+            status_code=403,
+            detail="This question is not yet available. Please contact your teacher."
+        )
+
     # Check if answer already exists for this attempt
     existing_answer = get_student_answer(
         db, answer_data.student_id, answer_data.question_id, answer_data.attempt

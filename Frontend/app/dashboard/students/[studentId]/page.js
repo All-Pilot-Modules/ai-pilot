@@ -23,6 +23,7 @@ function StudentDetailPageContent() {
   
   const [student, setStudent] = useState(null);
   const [studentAnswers, setStudentAnswers] = useState([]);
+  const [unansweredQuestions, setUnansweredQuestions] = useState([]);
   const [moduleData, setModuleData] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
@@ -79,9 +80,10 @@ function StudentDetailPageContent() {
         console.log('No survey configured for this module');
       }
 
-      // Get questions for this module
+      // Get questions for this module (all active questions)
       const questionsResponse = await apiClient.get(`/api/student/modules/${module.id}/questions`);
       const questions = questionsResponse.data || questionsResponse;
+      console.log(`📚 Total active questions in module: ${questions.length}`);
 
       // Get all student answers for this module
       const moduleAnswersResponse = await apiClient.get(`/api/student-answers?module_id=${module.id}`);
@@ -90,10 +92,9 @@ function StudentDetailPageContent() {
       // Filter answers for this specific student
       const studentModuleAnswers = allModuleAnswers.filter(answer => answer.student_id === studentId);
 
-      if (studentModuleAnswers.length === 0) {
-        setError(`No data found for student "${studentId}" in module "${moduleName}"`);
-        return;
-      }
+      // Continue even if student hasn't answered any questions yet
+      // We'll show all questions with unanswered status
+      console.log(`📝 Student has answered ${studentModuleAnswers.length} out of ${questions.length} questions`);
 
       // Fetch AI feedback for this student and module
       let feedbackData = [];
@@ -123,6 +124,12 @@ function StudentDetailPageContent() {
         }
         attemptGroups[attempt].push(answer);
       });
+
+      // If no answers at all, create a default attempt 1 group
+      if (Object.keys(attemptGroups).length === 0) {
+        attemptGroups[1] = [];
+      }
+
       setAnswersByAttempt(attemptGroups);
 
       // Get all unique attempts and set the selected attempt to the latest
@@ -136,9 +143,11 @@ function StudentDetailPageContent() {
         id: studentId,
         name: studentId, // Display student banner ID as name
         student_id: studentId,
-        last_access: studentModuleAnswers.reduce((latest, answer) => {
-          return new Date(answer.submitted_at) > new Date(latest) ? answer.submitted_at : latest;
-        }, studentModuleAnswers[0].submitted_at)
+        last_access: studentModuleAnswers.length > 0
+          ? studentModuleAnswers.reduce((latest, answer) => {
+              return new Date(answer.submitted_at) > new Date(latest) ? answer.submitted_at : latest;
+            }, studentModuleAnswers[0].submitted_at)
+          : null
       };
 
       // Calculate performance metrics across ALL attempts
@@ -233,28 +242,59 @@ function StudentDetailPageContent() {
         return studentOptionId === correctId;
       };
 
-      // Build question data from student answers (to include all attempts)
-      const studentQuestionData = studentModuleAnswers.map((studentAnswer) => {
-        const options = studentAnswer.question_options;
-        const correctOptionId = studentAnswer.correct_option_id; // New field
-        const correctAnswer = studentAnswer.correct_answer; // Legacy field
-        const studentAnswerValue = studentAnswer.answer;
+      // Build question data from ALL questions, matching with student answers
+      const studentQuestionData = questions.map((question) => {
+        // Find all answers for this question from the student (across all attempts)
+        const answersByAttemptForQuestion = studentModuleAnswers.filter(
+          answer => answer.question_id === question.id
+        );
 
-        return {
-          question_id: studentAnswer.question_id,
-          answer_id: studentAnswer.id, // Store answer_id for feedback lookup
-          question_text: studentAnswer.question_text,
-          question_type: studentAnswer.question_type || 'unknown',
-          correct_answer: formatAnswer(correctOptionId || correctAnswer, options),
-          student_answer: formatAnswer(studentAnswerValue, options),
-          is_correct: isAnswerCorrect(studentAnswerValue, correctOptionId, correctAnswer),
-          answered_at: studentAnswer.submitted_at,
-          attempt: studentAnswer.attempt || 1,
-          options: options,
-          raw_correct_answer: correctOptionId || correctAnswer,
-          raw_student_answer: studentAnswerValue
-        };
-      });
+        // Create an entry for each attempt that exists, or one entry if no attempts
+        if (answersByAttemptForQuestion.length === 0) {
+          // No answer for this question - show as unanswered
+          const options = question.options;
+          const correctOptionId = question.correct_option_id;
+          const correctAnswer = question.correct_answer;
+
+          return {
+            question_id: question.id,
+            answer_id: null,
+            question_text: question.question_text,
+            question_type: question.question_type || 'unknown',
+            correct_answer: formatAnswer(correctOptionId || correctAnswer, options),
+            student_answer: null,
+            is_correct: null,
+            answered_at: null,
+            attempt: 1, // Default to attempt 1 for unanswered questions
+            options: options,
+            raw_correct_answer: correctOptionId || correctAnswer,
+            raw_student_answer: null
+          };
+        }
+
+        // Student has answered this question - create entries for each attempt
+        return answersByAttemptForQuestion.map(studentAnswer => {
+          const options = studentAnswer.question_options || question.options;
+          const correctOptionId = studentAnswer.correct_option_id || question.correct_option_id;
+          const correctAnswer = studentAnswer.correct_answer || question.correct_answer;
+          const studentAnswerValue = studentAnswer.answer;
+
+          return {
+            question_id: studentAnswer.question_id,
+            answer_id: studentAnswer.id,
+            question_text: studentAnswer.question_text || question.question_text,
+            question_type: studentAnswer.question_type || question.question_type || 'unknown',
+            correct_answer: formatAnswer(correctOptionId || correctAnswer, options),
+            student_answer: formatAnswer(studentAnswerValue, options),
+            is_correct: isAnswerCorrect(studentAnswerValue, correctOptionId, correctAnswer),
+            answered_at: studentAnswer.submitted_at,
+            attempt: studentAnswer.attempt || 1,
+            options: options,
+            raw_correct_answer: correctOptionId || correctAnswer,
+            raw_student_answer: studentAnswerValue
+          };
+        });
+      }).flat(); // Flatten the array since some questions may have multiple attempts
 
       setStudentAnswers(studentQuestionData);
 
