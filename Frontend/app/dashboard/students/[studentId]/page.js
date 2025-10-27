@@ -98,12 +98,12 @@ function StudentDetailPageContent() {
 
       // Fetch AI feedback for this student and module
       let feedbackData = [];
+      let feedbackByAnswerId = {}; // Declare outside try block so it's accessible later
       try {
         const feedbackResponse = await apiClient.get(`/api/student/modules/${module.id}/feedback?student_id=${studentId}`);
         feedbackData = feedbackResponse.data || feedbackResponse || [];
 
         // Create a map of feedback by answer_id for quick lookup
-        const feedbackByAnswerId = {};
         feedbackData.forEach(feedback => {
           feedbackByAnswerId[feedback.answer_id] = feedback;
         });
@@ -132,11 +132,8 @@ function StudentDetailPageContent() {
 
       setAnswersByAttempt(attemptGroups);
 
-      // Get all unique attempts and set the selected attempt to the latest
+      // Get all unique attempts sorted by descending order (most recent first)
       const attempts = Object.keys(attemptGroups).map(Number).sort((a, b) => b - a);
-      if (attempts.length > 0) {
-        setSelectedAttempt(attempts[0]); // Default to most recent attempt
-      }
 
       // Build student info from answers
       const studentInfo = {
@@ -298,6 +295,21 @@ function StudentDetailPageContent() {
 
       setStudentAnswers(studentQuestionData);
 
+      // Find the attempt with the most recent feedback (highest attempt number with feedback)
+      // This ensures students see their feedback after submission, not empty final attempts
+      const attemptsWithFeedback = attempts.filter(attemptNum => {
+        const answersInAttempt = studentQuestionData.filter(q => q.attempt === attemptNum);
+        return answersInAttempt.some(q => q.answer_id && feedbackByAnswerId[q.answer_id]);
+      });
+
+      // Default to attempt with feedback, or most recent attempt if none have feedback
+      const defaultAttempt = attemptsWithFeedback.length > 0
+        ? attemptsWithFeedback[0]  // Already sorted descending, so this is the most recent with feedback
+        : (attempts.length > 0 ? attempts[0] : 1); // Fall back to most recent attempt or 1
+
+      setSelectedAttempt(defaultAttempt);
+      console.log(`📍 Selected default attempt: ${defaultAttempt} (attempts with feedback: ${attemptsWithFeedback.join(', ') || 'none'})`);
+
     } catch (error) {
       console.error('Error fetching student details:', error);
       setError('Failed to load student data. Please try again.');
@@ -374,7 +386,9 @@ function StudentDetailPageContent() {
         {feedback.score !== null && feedback.score !== undefined && (
           <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-600">
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Score: </span>
-            <span className="text-sm font-bold text-slate-800 dark:text-slate-200">{Math.round(feedback.score * 100)}%</span>
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              {Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100)}%
+            </span>
           </div>
         )}
       </div>
@@ -396,39 +410,83 @@ function StudentDetailPageContent() {
     }
     if (feedback.improvement_hint) text += `Suggestion: ${feedback.improvement_hint}. `;
     if (feedback.score !== null && feedback.score !== undefined) {
-      text += `Score: ${Math.round(feedback.score * 100)}%`;
+      text += `Score: ${Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100)}%`;
     }
     return text || 'No feedback details';
+  };
+
+  // Helper function to properly escape CSV values
+  const escapeCSV = (value) => {
+    if (value === null || value === undefined) return '';
+    const stringValue = String(value);
+    // Replace line breaks with spaces and escape quotes
+    const cleaned = stringValue.replace(/\r?\n/g, ' ').replace(/"/g, '""');
+    // Wrap in quotes if contains comma, quote, or starts with special chars
+    if (cleaned.includes(',') || cleaned.includes('"') || cleaned.includes('\n')) {
+      return `"${cleaned}"`;
+    }
+    return cleaned;
   };
 
   // Function to download student report as CSV
   const downloadStudentReport = () => {
     if (!student || !studentAnswers.length) return;
 
-    const csvHeaders = ['Question No.', 'Question', 'Correct Answer', 'Student Answer', 'Result', 'Attempt', 'AI Feedback'];
+    // Enhanced headers with separate feedback columns
+    const csvHeaders = [
+      'Question No.',
+      'Attempt',
+      'Question',
+      'Question Type',
+      'Correct Answer',
+      'Student Answer',
+      'Result',
+      'Score',
+      'Feedback - Explanation',
+      'Feedback - Strengths',
+      'Feedback - Weaknesses',
+      'Feedback - Suggestion'
+    ];
 
-    const csvData = studentAnswers.map((questionData, index) => [
-      index + 1,
-      `"${questionData.question_text}"`,
-      `"${questionData.correct_answer || 'Not specified'}"`,
-      `"${questionData.student_answer || 'Not Answered'}"`,
-      questionData.student_answer !== null
-        ? (questionData.is_correct ? 'Correct' : 'Wrong')
-        : 'Pending',
-      questionData.attempt || 1,
-      `"${getAIFeedbackText(questionData.answer_id)}"`
-    ]);
+    const csvData = studentAnswers.map((questionData, index) => {
+      const feedback = getAIFeedback(questionData.answer_id);
 
+      return [
+        index + 1,
+        questionData.attempt || 1,
+        escapeCSV(questionData.question_text),
+        escapeCSV(questionData.question_type || 'Unknown'),
+        escapeCSV(questionData.correct_answer || 'Not specified'),
+        escapeCSV(questionData.student_answer || 'Not Answered'),
+        questionData.student_answer !== null
+          ? (questionData.is_correct ? 'Correct' : 'Wrong')
+          : 'Pending',
+        feedback?.score ? `${Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100)}%` : 'N/A',
+        escapeCSV(feedback?.explanation || ''),
+        escapeCSV(feedback?.strengths?.join('; ') || ''),
+        escapeCSV(feedback?.weaknesses?.join('; ') || ''),
+        escapeCSV(feedback?.improvement_hint || '')
+      ];
+    });
+
+    // Create a well-structured CSV with clear sections
     const csvContent = [
-      csvHeaders.join(','),
-      `Student ID: ${student.student_id}`,
-      `Module: ${moduleData?.name || moduleName}`,
-      `Overall Progress: ${student.progress}%`,
-      `Average Score: ${student.avg_score}%`,
-      `Questions Completed: ${student.completed_questions}/${student.total_questions}`,
-      `Total Attempts: ${student.total_attempts || 1}`,
-      `Report Generated: ${new Date().toLocaleString()}`,
+      '=== STUDENT PERFORMANCE REPORT ===',
       '',
+      '--- Summary Information ---',
+      `Student ID,${student.student_id}`,
+      `Module,${escapeCSV(moduleData?.name || moduleName)}`,
+      `Overall Progress,${student.progress}%`,
+      `Average Score,${student.avg_score}%`,
+      `Correct Answers,${student.correct_answers}`,
+      `Incorrect Answers,${student.incorrect_answers}`,
+      `Questions Completed,${student.completed_questions}`,
+      `Total Questions,${student.total_questions}`,
+      `Total Attempts,${student.total_attempts || 1}`,
+      `Report Generated,${new Date().toLocaleString()}`,
+      '',
+      '',
+      '--- Detailed Question Analysis ---',
       csvHeaders.join(','),
       ...csvData.map(row => row.join(','))
     ].join('\n');

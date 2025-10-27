@@ -10,6 +10,16 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Users,
   FileText,
   BarChart3,
@@ -61,6 +71,7 @@ function DashboardContent() {
   const [copiedItems, setCopiedItems] = useState({});
   const [moduleId, setModuleId] = useState(null);
   const [rubricSummary, setRubricSummary] = useState(null);
+  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
 
   const loadRubricSummary = useCallback(async (id) => {
     try {
@@ -168,14 +179,16 @@ function DashboardContent() {
       // Get the current module
       const modules = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
       const currentModule = modules.find(m => m.name === moduleName);
-      
+
       if (currentModule) {
         // Call the real regenerate API
         const updatedModule = await apiClient.post(`/api/modules/${currentModule.id}/regenerate-code`);
         setModuleData(prev => ({...prev, accessCode: updatedModule.access_code}));
+        setShowRegenerateDialog(false); // Close the dialog after successful regeneration
       }
     } catch (error) {
       console.error('Failed to regenerate access code:', error);
+      setShowRegenerateDialog(false); // Close the dialog even on error
     }
   };
 
@@ -365,7 +378,7 @@ function DashboardContent() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={regenerateAccessCode}
+                        onClick={() => setShowRegenerateDialog(true)}
                         className="flex-1 h-8 text-xs border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
                         <RotateCcw className="w-3 h-3 mr-1" />
@@ -776,6 +789,38 @@ function DashboardContent() {
           </div>
         </div>
       </SidebarInset>
+
+      {/* Confirmation Dialog for Regenerating Access Code */}
+      <AlertDialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate Access Code?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <div>
+                  Are you sure you want to regenerate the access code for this module?
+                </div>
+                <div className="font-semibold text-orange-600 dark:text-orange-400">
+                  ⚠️ Warning: The current access code will immediately become invalid.
+                </div>
+                <div className="text-sm">
+                  Students with the old code will no longer be able to access the module.
+                  You will need to share the new code with all students.
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={regenerateAccessCode}
+              className="bg-orange-600 hover:bg-orange-700 focus:ring-orange-600"
+            >
+              Yes, Regenerate Code
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 }

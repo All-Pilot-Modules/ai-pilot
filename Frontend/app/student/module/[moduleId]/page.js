@@ -219,9 +219,8 @@ function StudentModuleContent() {
       setFeedbackByAttempt(byAttempt);
       setAnsweredQuestions(answeredMap);
 
-      // Also set the currently selected attempt's feedback for backward compatibility
-      const currentFeedback = byAttempt[selectedAttempt] || {};
-      setFeedbackData(currentFeedback);
+      // Note: feedbackData will be set by the useEffect when selectedAttempt is determined
+      // Don't set it here as selectedAttempt might still be the default value (1)
 
       const totalFeedback = Object.values(byAttempt).reduce((sum, attempt) => sum + Object.keys(attempt).length, 0);
 
@@ -352,20 +351,49 @@ function StudentModuleContent() {
 
       if (access.studentId && questionsData.length > 0) {
         // Use the new submission-status endpoint to get submission state
+        let status = null;
         try {
           const statusResponse = await apiClient.get(
             `/api/student/modules/${moduleId}/submission-status?student_id=${access.studentId}`
           );
-          const status = statusResponse?.data || statusResponse || {};
+          status = statusResponse?.data || statusResponse || {};
           setSubmissionStatus(status);
           console.log(`📊 Submission status loaded:`, status);
         } catch (err) {
           console.log('No submission status found - student hasn\'t submitted yet');
-          setSubmissionStatus({ current_attempt: 1, submissions: [], can_submit_again: true, all_attempts_done: false });
+          status = { current_attempt: 1, submissions: [], can_submit_again: true, all_attempts_done: false };
+          setSubmissionStatus(status);
         }
 
         // Load feedback from database
         const feedbackMap = await loadFeedbackForAnswers(access);
+
+        // Determine which attempt to show by default
+        // Priority: Use the most recently completed submission (even if feedback is still generating)
+        let attemptToShow = 1;
+
+        if (status && status.current_attempt && status.current_attempt > 1) {
+          // If current_attempt is 2, that means attempt 1 is complete
+          // If current_attempt is 3, that means attempt 2 is complete, etc.
+          attemptToShow = status.current_attempt - 1;
+          console.log(`📍 Using submission status: showing attempt ${attemptToShow} (most recently completed)`);
+        } else if (feedbackMap && Object.keys(feedbackMap).length > 0) {
+          // Fallback: use the highest attempt number that has feedback
+          const attemptNumbers = Object.keys(feedbackMap).map(Number).sort((a, b) => b - a);
+          attemptToShow = attemptNumbers[0];
+          console.log(`📍 Using feedback availability: showing attempt ${attemptToShow}`);
+        }
+
+        setSelectedAttempt(attemptToShow);
+
+        // Set the feedback data for the selected attempt (may be empty if still generating)
+        const selectedFeedback = feedbackMap[attemptToShow] || {};
+        setFeedbackData(selectedFeedback);
+
+        console.log(`✅ Showing attempt ${attemptToShow} with ${Object.keys(selectedFeedback).length} feedback items`);
+        if (Object.keys(selectedFeedback).length === 0) {
+          console.log('⏳ Feedback for this attempt is still being generated');
+        }
 
         // Check if we should start polling (when on feedback tab after submission)
         if (initialTab === 'feedback') {
@@ -977,7 +1005,7 @@ function StudentModuleContent() {
                                           ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
                                           : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300"
                                       }>
-                                        Score: {feedback.score}%
+                                        Score: {Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100)}%
                                       </Badge>
                                     </>
                                   ) : (
