@@ -42,7 +42,7 @@ def create_module(db: Session, payload: ModuleCreate) -> Module:
         due_date=payload.due_date,
         visibility=payload.visibility or "class-only",
         slug=slugify.slugify(payload.name),
-        access_code=secrets.token_hex(3),
+        access_code=secrets.token_hex(3).upper(),
         instructions=payload.instructions,
         assignment_config=payload.assignment_config,
         created_at=datetime.utcnow()
@@ -63,7 +63,7 @@ def get_or_create_module(db: Session, teacher_id: str, module_name: str) -> Modu
         teacher_id=teacher_id,
         name=module_name,
         slug=slugify.slugify(module_name),
-        access_code=secrets.token_hex(3),
+        access_code=secrets.token_hex(3).upper(),
         is_active=True,
         created_at=datetime.utcnow()
     )

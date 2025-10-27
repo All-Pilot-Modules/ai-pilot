@@ -1020,6 +1020,16 @@ function StudentModuleContent() {
                                 <p className="text-base text-gray-900 dark:text-gray-100 leading-relaxed whitespace-pre-wrap">
                                   {question.text}
                                 </p>
+                                {question.image_url && (
+                                  <div className="mt-3">
+                                    <img
+                                      src={question.image_url}
+                                      alt="Question illustration"
+                                      className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
+                                      loading="lazy"
+                                    />
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </CardHeader>

@@ -29,7 +29,7 @@ def get_or_create_module(db: Session, teacher_id: str, module_name: str) -> Modu
             teacher_id=teacher_id,
             name=module_name,
             slug=slug,
-            access_code=secrets.token_hex(3),
+            access_code=secrets.token_hex(3).upper(),
             is_active=True,
             visibility="class-only",
             created_at=datetime.utcnow()

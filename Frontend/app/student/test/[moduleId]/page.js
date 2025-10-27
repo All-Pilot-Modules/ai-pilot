@@ -534,6 +534,16 @@ export default function StudentTestPage() {
                   {/* Question Text */}
                   <div className="prose dark:prose-invert max-w-none">
                     <p className="text-lg leading-relaxed whitespace-pre-wrap">{currentQ?.text}</p>
+                    {currentQ?.image_url && (
+                      <div className="mt-4">
+                        <img
+                          src={currentQ.image_url}
+                          alt="Question illustration"
+                          className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   {/* Learning Outcome */}

@@ -258,6 +258,7 @@ function StudentDetailPageContent() {
             answer_id: null,
             question_text: question.question_text,
             question_type: question.question_type || 'unknown',
+            image_url: question.image_url || null,
             correct_answer: formatAnswer(correctOptionId || correctAnswer, options),
             student_answer: null,
             is_correct: null,
@@ -281,6 +282,7 @@ function StudentDetailPageContent() {
             answer_id: studentAnswer.id,
             question_text: studentAnswer.question_text || question.question_text,
             question_type: studentAnswer.question_type || question.question_type || 'unknown',
+            image_url: question.image_url || null,
             correct_answer: formatAnswer(correctOptionId || correctAnswer, options),
             student_answer: formatAnswer(studentAnswerValue, options),
             is_correct: isAnswerCorrect(studentAnswerValue, correctOptionId, correctAnswer),
@@ -1042,6 +1044,17 @@ function StudentDetailPageContent() {
                                 <td className="p-5 max-w-md border-r border-slate-100 dark:border-slate-700">
                                   <div className="space-y-2">
                                     <p className="text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{questionData.question_text}</p>
+                                    {questionData.image_url && (
+                                      <div className="mt-2">
+                                        <img
+                                          src={questionData.image_url}
+                                          alt="Question illustration"
+                                          className="max-w-full h-auto rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm"
+                                          style={{ maxHeight: '200px' }}
+                                          loading="lazy"
+                                        />
+                                      </div>
+                                    )}
                                     {questionData.answered_at && (
                                       <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                                         <Clock className="w-3 h-3" />

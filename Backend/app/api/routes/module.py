@@ -148,8 +148,8 @@ def regenerate_access_code(module_id: UUID, db: Session = Depends(get_db)):
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
 
-    # Generate new access code
-    new_access_code = secrets.token_hex(3).upper()  # 6-character hex code
+    # Generate new access code (uppercase for consistency and readability)
+    new_access_code = secrets.token_hex(3).upper()  # 6-character uppercase hex code
 
     # Update module with new access code
     module.access_code = new_access_code
