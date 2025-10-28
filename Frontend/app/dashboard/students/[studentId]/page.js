@@ -149,12 +149,44 @@ function StudentDetailPageContent() {
 
       // Calculate performance metrics across ALL attempts
       const totalQuestions = questions.length;
-      const answeredQuestions = studentModuleAnswers.length;
-      const correctAnswers = studentModuleAnswers.filter(answer => {
-        if (typeof answer.answer === 'object' && typeof answer.correct_answer === 'object') {
-          return JSON.stringify(answer.answer) === JSON.stringify(answer.correct_answer);
+
+      // Count UNIQUE questions answered (not total answers, to avoid counting multiple attempts)
+      const uniqueQuestionIds = new Set(studentModuleAnswers.map(answer => answer.question_id));
+      const answeredQuestions = uniqueQuestionIds.size;
+
+      // For each unique question, get the most recent answer to check correctness
+      const correctAnswers = Array.from(uniqueQuestionIds).filter(questionId => {
+        // Get all answers for this question, sorted by date (most recent first)
+        const answersForQuestion = studentModuleAnswers
+          .filter(answer => answer.question_id === questionId)
+          .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+
+        // Check if the most recent answer is correct
+        const mostRecentAnswer = answersForQuestion[0];
+        const question = questions.find(q => q.id === questionId);
+        const questionType = (mostRecentAnswer.question_type || question?.question_type || '').toLowerCase();
+        const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice';
+
+        // For MCQ: use binary correct/incorrect
+        if (isMCQ) {
+          if (typeof mostRecentAnswer.answer === 'object' && typeof mostRecentAnswer.correct_answer === 'object') {
+            return JSON.stringify(mostRecentAnswer.answer) === JSON.stringify(mostRecentAnswer.correct_answer);
+          }
+          return mostRecentAnswer.answer === mostRecentAnswer.correct_answer;
         }
-        return answer.answer === answer.correct_answer;
+
+        // For short/essay questions: use AI score with 60% threshold
+        const feedback = feedbackByAnswerId[mostRecentAnswer.id];
+        if (feedback?.score !== null && feedback?.score !== undefined) {
+          const scorePercent = feedback.score > 1 ? feedback.score : feedback.score * 100;
+          return scorePercent >= 60; // 60% or higher counts as "correct"
+        }
+
+        // Fallback to boolean check if no score available
+        if (typeof mostRecentAnswer.answer === 'object' && typeof mostRecentAnswer.correct_answer === 'object') {
+          return JSON.stringify(mostRecentAnswer.answer) === JSON.stringify(mostRecentAnswer.correct_answer);
+        }
+        return mostRecentAnswer.answer === mostRecentAnswer.correct_answer;
       }).length;
 
       const studentWithPerformance = {
@@ -162,7 +194,7 @@ function StudentDetailPageContent() {
         total_questions: totalQuestions,
         completed_questions: answeredQuestions,
         avg_score: answeredQuestions > 0 ? Math.round((correctAnswers / answeredQuestions) * 100) : 0,
-        progress: Math.round((answeredQuestions / totalQuestions) * 100),
+        progress: Math.min(100, Math.round((answeredQuestions / totalQuestions) * 100)), // Cap at 100%
         correct_answers: correctAnswers,
         incorrect_answers: answeredQuestions - correctAnswers,
         total_attempts: attempts.length
@@ -452,6 +484,20 @@ function StudentDetailPageContent() {
 
     const csvData = studentAnswers.map((questionData, index) => {
       const feedback = getAIFeedback(questionData.answer_id);
+      const questionType = questionData.question_type?.toLowerCase();
+      const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice';
+
+      // Determine result display
+      let resultDisplay;
+      if (questionData.student_answer === null) {
+        resultDisplay = 'Pending';
+      } else if (isMCQ) {
+        resultDisplay = questionData.is_correct ? 'Correct' : 'Wrong';
+      } else if (feedback?.score !== null && feedback?.score !== undefined) {
+        resultDisplay = `${Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100)}%`;
+      } else {
+        resultDisplay = questionData.is_correct ? 'Correct' : 'Wrong';
+      }
 
       return [
         index + 1,
@@ -460,9 +506,7 @@ function StudentDetailPageContent() {
         escapeCSV(questionData.question_type || 'Unknown'),
         escapeCSV(questionData.correct_answer || 'Not specified'),
         escapeCSV(questionData.student_answer || 'Not Answered'),
-        questionData.student_answer !== null
-          ? (questionData.is_correct ? 'Correct' : 'Wrong')
-          : 'Pending',
+        resultDisplay,
         feedback?.score ? `${Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100)}%` : 'N/A',
         escapeCSV(feedback?.explanation || ''),
         escapeCSV(feedback?.strengths?.join('; ') || ''),
@@ -524,15 +568,29 @@ function StudentDetailPageContent() {
       },
       questions: studentAnswers.map((questionData, index) => {
         const feedback = getAIFeedback(questionData.answer_id);
+        const questionType = questionData.question_type?.toLowerCase();
+        const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice';
+
+        // Determine result display
+        let resultDisplay;
+        if (questionData.student_answer === null) {
+          resultDisplay = 'Pending';
+        } else if (isMCQ) {
+          resultDisplay = questionData.is_correct ? 'Correct' : 'Wrong';
+        } else if (feedback?.score !== null && feedback?.score !== undefined) {
+          resultDisplay = `${Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100)}%`;
+        } else {
+          resultDisplay = questionData.is_correct ? 'Correct' : 'Wrong';
+        }
+
         return {
           questionNumber: index + 1,
           questionText: questionData.question_text,
+          questionType: questionData.question_type,
           correctAnswer: questionData.correct_answer,
           studentAnswer: questionData.student_answer,
           isCorrect: questionData.is_correct,
-          result: questionData.student_answer !== null
-            ? (questionData.is_correct ? 'Correct' : 'Wrong')
-            : 'Pending',
+          result: resultDisplay,
           attempt: questionData.attempt || 1,
           aiFeedback: feedback ? {
             explanation: feedback.explanation,
@@ -704,146 +762,71 @@ function StudentDetailPageContent() {
                     </div>
                   </div>
 
-                  {/* Performance Overview Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground">Overall Progress</p>
-                            <p className="text-2xl font-bold">{student?.progress}%</p>
-                          </div>
-                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                            <TrendingUp className="w-6 h-6 text-blue-600" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground">Average Score</p>
-                            <p className="text-2xl font-bold">{student?.avg_score}%</p>
-                          </div>
-                          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                            <Award className="w-6 h-6 text-green-600" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground">Questions Completed</p>
-                            <p className="text-2xl font-bold">{student?.completed_questions}/{student?.total_questions}</p>
-                          </div>
-                          <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                            <BookOpen className="w-6 h-6 text-purple-600" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground">Last Access</p>
-                            <p className="text-sm font-bold">
-                              {student?.last_access ? new Date(student.last_access).toLocaleDateString() : 'Never'}
-                            </p>
-                          </div>
-                          <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                            <Clock className="w-6 h-6 text-orange-600" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Performance Summary */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <BarChart3 className="w-5 h-5" />
-                          Performance Breakdown
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium">Correct Answers</span>
-                            <div className="flex items-center gap-2">
-                              <div className="w-32 bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className="bg-green-600 h-2 rounded-full" 
-                                  style={{width: `${student?.total_questions > 0 ? (student.correct_answers / student.total_questions) * 100 : 0}%`}}
-                                ></div>
+                  {/* Student Activity Stats */}
+                  <div className="mb-6">
+                    <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5 text-blue-600" />
+                      Student Activity
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Card className="border-purple-200 dark:border-purple-800">
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-muted-foreground mb-2">Test Attempts</p>
+                              <div className="flex items-baseline gap-2">
+                                <p className="text-5xl font-bold text-purple-600">{Object.keys(answersByAttempt).length}</p>
+                                {moduleData?.max_attempts && (
+                                  <>
+                                    <p className="text-2xl font-semibold text-gray-400">/</p>
+                                    <p className="text-3xl font-semibold text-purple-400">{moduleData.max_attempts}</p>
+                                  </>
+                                )}
                               </div>
-                              <span className="text-sm font-medium">{student?.correct_answers || 0}</span>
+                              <p className="text-sm text-muted-foreground mt-2">
+                                {moduleData?.max_attempts ? (
+                                  Object.keys(answersByAttempt).length >= moduleData.max_attempts
+                                    ? 'All attempts used'
+                                    : `${moduleData.max_attempts - Object.keys(answersByAttempt).length} attempt${moduleData.max_attempts - Object.keys(answersByAttempt).length !== 1 ? 's' : ''} remaining`
+                                ) : (
+                                  Object.keys(answersByAttempt).length === 1 ? '1 attempt made' : `${Object.keys(answersByAttempt).length} attempts made`
+                                )}
+                              </p>
+                            </div>
+                            <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                              <BarChart3 className="w-8 h-8 text-purple-600 dark:text-purple-400" />
                             </div>
                           </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium">Incorrect Answers</span>
-                            <div className="flex items-center gap-2">
-                              <div className="w-32 bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className="bg-red-600 h-2 rounded-full" 
-                                  style={{width: `${student?.total_questions > 0 ? (student.incorrect_answers / student.total_questions) * 100 : 0}%`}}
-                                ></div>
-                              </div>
-                              <span className="text-sm font-medium">{student?.incorrect_answers || 0}</span>
-                            </div>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium">Unanswered</span>
-                            <div className="flex items-center gap-2">
-                              <div className="w-32 bg-gray-200 rounded-full h-2">
-                                <div 
-                                  className="bg-gray-400 h-2 rounded-full" 
-                                  style={{width: `${student?.total_questions > 0 ? ((student.total_questions - student.completed_questions) / student.total_questions) * 100 : 0}%`}}
-                                ></div>
-                              </div>
-                              <span className="text-sm font-medium">{(student?.total_questions || 0) - (student?.completed_questions || 0)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                        </CardContent>
+                      </Card>
 
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <PieChart className="w-5 h-5" />
-                          Quick Stats
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-green-600">{student?.correct_answers || 0}</div>
-                            <div className="text-sm text-muted-foreground">Correct</div>
+                      <Card className="border-orange-200 dark:border-orange-800">
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-muted-foreground mb-2">Last Access</p>
+                              <p className="text-2xl font-bold text-orange-600">
+                                {student?.last_access ? new Date(student.last_access).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                }) : 'Never'}
+                              </p>
+                              <p className="text-sm text-muted-foreground mt-2">
+                                {student?.last_access ? (
+                                  <>
+                                    at {new Date(student.last_access).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                                  </>
+                                ) : 'No activity yet'}
+                              </p>
+                            </div>
+                            <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                              <Clock className="w-8 h-8 text-orange-600 dark:text-orange-400" />
+                            </div>
                           </div>
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-red-600">{student?.incorrect_answers || 0}</div>
-                            <div className="text-sm text-muted-foreground">Incorrect</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-blue-600">{student?.completed_questions || 0}</div>
-                            <div className="text-sm text-muted-foreground">Answered</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-gray-600">{(student?.total_questions || 0) - (student?.completed_questions || 0)}</div>
-                            <div className="text-sm text-muted-foreground">Remaining</div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                        </CardContent>
+                      </Card>
+                    </div>
                   </div>
                 </div>
 
@@ -1097,25 +1080,99 @@ function StudentDetailPageContent() {
                                 <td className="p-5 border-r border-slate-100 dark:border-slate-700">
                                   <div className="flex items-center justify-center">
                                     {questionData.student_answer !== null ? (
-                                      questionData.is_correct ? (
-                                        <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 rounded-xl shadow-sm">
-                                          <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-800 rounded-full flex items-center justify-center">
-                                            <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                                      (() => {
+                                        const feedback = getAIFeedback(questionData.answer_id);
+                                        const questionType = questionData.question_type?.toLowerCase();
+                                        const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice';
+
+                                        // For MCQ questions, show Correct/Wrong
+                                        if (isMCQ) {
+                                          return questionData.is_correct ? (
+                                            <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 rounded-xl shadow-sm">
+                                              <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-800 rounded-full flex items-center justify-center">
+                                                <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                                              </div>
+                                              <span className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                                                Correct
+                                              </span>
+                                            </div>
+                                          ) : (
+                                            <div className="flex items-center gap-3 px-4 py-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 rounded-xl shadow-sm">
+                                              <div className="w-8 h-8 bg-rose-100 dark:bg-rose-800 rounded-full flex items-center justify-center">
+                                                <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                                              </div>
+                                              <span className="text-sm font-semibold text-rose-800 dark:text-rose-300">
+                                                Wrong
+                                              </span>
+                                            </div>
+                                          );
+                                        }
+
+                                        // For short/essay questions, show score percentage
+                                        if (feedback?.score !== null && feedback?.score !== undefined) {
+                                          const scorePercent = Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100);
+
+                                          // Color coding based on score ranges
+                                          let bgColor, borderColor, iconBgColor, textColor, icon;
+                                          if (scorePercent >= 80) {
+                                            bgColor = 'bg-emerald-50 dark:bg-emerald-900/30';
+                                            borderColor = 'border-emerald-200 dark:border-emerald-700';
+                                            iconBgColor = 'bg-emerald-100 dark:bg-emerald-800';
+                                            textColor = 'text-emerald-800 dark:text-emerald-300';
+                                            icon = <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />;
+                                          } else if (scorePercent >= 60) {
+                                            bgColor = 'bg-yellow-50 dark:bg-yellow-900/30';
+                                            borderColor = 'border-yellow-200 dark:border-yellow-700';
+                                            iconBgColor = 'bg-yellow-100 dark:bg-yellow-800';
+                                            textColor = 'text-yellow-800 dark:text-yellow-300';
+                                            icon = <CheckCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />;
+                                          } else if (scorePercent >= 40) {
+                                            bgColor = 'bg-orange-50 dark:bg-orange-900/30';
+                                            borderColor = 'border-orange-200 dark:border-orange-700';
+                                            iconBgColor = 'bg-orange-100 dark:bg-orange-800';
+                                            textColor = 'text-orange-800 dark:text-orange-300';
+                                            icon = <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />;
+                                          } else {
+                                            bgColor = 'bg-rose-50 dark:bg-rose-900/30';
+                                            borderColor = 'border-rose-200 dark:border-rose-700';
+                                            iconBgColor = 'bg-rose-100 dark:bg-rose-800';
+                                            textColor = 'text-rose-800 dark:text-rose-300';
+                                            icon = <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400" />;
+                                          }
+
+                                          return (
+                                            <div className={`flex flex-col items-center gap-2 px-4 py-3 ${bgColor} border ${borderColor} rounded-xl shadow-sm`}>
+                                              <div className={`w-8 h-8 ${iconBgColor} rounded-full flex items-center justify-center`}>
+                                                {icon}
+                                              </div>
+                                              <span className={`text-lg font-bold ${textColor}`}>
+                                                {scorePercent}%
+                                              </span>
+                                            </div>
+                                          );
+                                        }
+
+                                        // Fallback to Correct/Wrong if no score available
+                                        return questionData.is_correct ? (
+                                          <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 rounded-xl shadow-sm">
+                                            <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-800 rounded-full flex items-center justify-center">
+                                              <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                                            </div>
+                                            <span className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                                              Correct
+                                            </span>
                                           </div>
-                                          <span className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
-                                            Correct
-                                          </span>
-                                        </div>
-                                      ) : (
-                                        <div className="flex items-center gap-3 px-4 py-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 rounded-xl shadow-sm">
-                                          <div className="w-8 h-8 bg-rose-100 dark:bg-rose-800 rounded-full flex items-center justify-center">
-                                            <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                                        ) : (
+                                          <div className="flex items-center gap-3 px-4 py-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 rounded-xl shadow-sm">
+                                            <div className="w-8 h-8 bg-rose-100 dark:bg-rose-800 rounded-full flex items-center justify-center">
+                                              <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                                            </div>
+                                            <span className="text-sm font-semibold text-rose-800 dark:text-rose-300">
+                                              Wrong
+                                            </span>
                                           </div>
-                                          <span className="text-sm font-semibold text-rose-800 dark:text-rose-300">
-                                            Wrong
-                                          </span>
-                                        </div>
-                                      )
+                                        );
+                                      })()
                                     ) : (
                                       <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-sm">
                                         <div className="w-8 h-8 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">

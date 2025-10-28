@@ -7,6 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Copy, RotateCcw, ExternalLink, Check, Trash2, Settings, FileText } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
@@ -51,6 +61,8 @@ export default function MyModules() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedItems, setCopiedItems] = useState({});
   const [deletingModules, setDeletingModules] = useState({});
+  const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
+  const [moduleToRegenerate, setModuleToRegenerate] = useState(null);
 
   const fetchModules = async () => {
     try {
@@ -153,12 +165,18 @@ export default function MyModules() {
     }
   };
 
-  const regenerateAccessCode = async (moduleId) => {
+  const regenerateAccessCode = async () => {
+    if (!moduleToRegenerate) return;
+
     try {
-      await apiClient.post(`/api/modules/${moduleId}/regenerate-code`);
+      await apiClient.post(`/api/modules/${moduleToRegenerate}/regenerate-code`);
       fetchModules(); // Refresh to get new access code
+      setShowRegenerateDialog(false);
+      setModuleToRegenerate(null);
     } catch (error) {
       console.error('Failed to regenerate access code:', error);
+      setShowRegenerateDialog(false);
+      setModuleToRegenerate(null);
     }
   };
 
@@ -336,7 +354,10 @@ export default function MyModules() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => regenerateAccessCode(module.id)}
+                              onClick={() => {
+                                setModuleToRegenerate(module.id);
+                                setShowRegenerateDialog(true);
+                              }}
                               className="h-9 w-9 p-0"
                               title="Regenerate access code"
                             >
@@ -458,6 +479,38 @@ export default function MyModules() {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Dialog for Regenerating Access Code */}
+      <AlertDialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Regenerate Access Code?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <div>
+                  Are you sure you want to regenerate the access code for this module?
+                </div>
+                <div className="font-semibold text-orange-600 dark:text-orange-400">
+                  ⚠️ Warning: The current access code will immediately become invalid.
+                </div>
+                <div className="text-sm">
+                  Students with the old code will no longer be able to access the module.
+                  You will need to share the new code with all students.
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={regenerateAccessCode}
+              className="bg-orange-600 hover:bg-orange-700 focus:ring-orange-600"
+            >
+              Yes, Regenerate Code
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -216,6 +216,25 @@ function StudentModuleContent() {
         });
       }
 
+      // Also fetch submitted answers to track which questions were answered
+      // (even if feedback hasn't been generated yet)
+      try {
+        const answersResponse = await apiClient.get(
+          `/api/student/modules/${moduleId}/my-answers?student_id=${access.studentId}`
+        );
+        const submittedAnswers = answersResponse?.data || answersResponse || [];
+
+        submittedAnswers.forEach(answer => {
+          if (answer && answer.question_id) {
+            answeredMap[answer.question_id] = true;
+          }
+        });
+
+        console.log(`📝 Found ${submittedAnswers.length} submitted answers`);
+      } catch (err) {
+        console.log('No submitted answers found or error fetching answers');
+      }
+
       setFeedbackByAttempt(byAttempt);
       setAnsweredQuestions(answeredMap);
 
@@ -327,6 +346,19 @@ function StudentModuleContent() {
 
       // Set data
       const moduleInfo = moduleResponse.data || moduleResponse;
+
+      // Fetch teacher information if available
+      if (moduleInfo.teacher_id) {
+        try {
+          const teacherResponse = await apiClient.get(`/api/users/${moduleInfo.teacher_id}`);
+          const teacherData = teacherResponse.data || teacherResponse;
+          moduleInfo.teacher_name = teacherData.name || teacherData.email || 'Instructor';
+        } catch (err) {
+          console.log('Could not fetch teacher info:', err);
+          moduleInfo.teacher_name = 'Instructor';
+        }
+      }
+
       setModuleData(moduleInfo);
       setDocuments(documentsResponse.data || documentsResponse);
 
@@ -482,7 +514,7 @@ function StudentModuleContent() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 gap-1 text-sm text-gray-600 dark:text-gray-400">
                   <span className="flex items-center gap-1">
                     <User className="w-4 h-4 flex-shrink-0" />
-                    <span className="truncate">{moduleAccess?.teacherName || 'Instructor'}</span>
+                    <span className="truncate">{moduleData?.teacher_name || moduleAccess?.teacherName || 'Instructor'}</span>
                   </span>
                   <span className="flex items-center gap-1">
                     <Calendar className="w-4 h-4 flex-shrink-0" />
@@ -815,7 +847,24 @@ function StudentModuleContent() {
               </Card>
             )}
 
-            {Object.keys(feedbackData).length > 0 ? (
+            {isPolling && Object.keys(feedbackData).length === 0 ? (
+              <Card className="text-center py-12">
+                <CardContent>
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 dark:border-blue-400 mx-auto mb-6"></div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                    Generating Your Feedback...
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    Please wait while we analyze your answers. This may take a few moments.
+                  </p>
+                  {feedbackStatus && (
+                    <p className="text-sm text-blue-600 dark:text-blue-400">
+                      {feedbackStatus.feedback_ready} of {feedbackStatus.total_questions} feedback generated
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ) : Object.keys(feedbackData).length > 0 ? (
               <>
                 {/* Attempt Selector */}
                 {Object.keys(feedbackByAttempt).length > 1 && (
@@ -939,17 +988,23 @@ function StudentModuleContent() {
                                 onClick={() => scrollToQuestion(q.id)}
                                 className={`
                                   w-12 h-12 rounded-lg text-sm font-bold border-2 transition-colors relative flex items-center justify-center
-                                  ${!isAnswered
+                                  ${isPolling && !feedback
+                                    ? 'border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                                    : !isAnswered
                                     ? 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'
                                     : feedback
                                     ? feedback.is_correct
                                       ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30'
                                       : 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/30'
-                                    : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-400'
+                                    : 'border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
                                   }
                                 `}
                               >
-                                {!isAnswered ? (
+                                {isPolling && !feedback ? (
+                                  <div className="flex items-center justify-center">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 dark:border-blue-400"></div>
+                                  </div>
+                                ) : !isAnswered ? (
                                   <span className="text-base font-bold">{index + 1}</span>
                                 ) : feedback ? (
                                   <div className="relative w-full h-full flex items-center justify-center">
@@ -961,8 +1016,8 @@ function StudentModuleContent() {
                                     )}
                                   </div>
                                 ) : (
-                                  <div className="animate-pulse">
-                                    <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                                  <div className="flex items-center justify-center">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 dark:border-blue-400"></div>
                                   </div>
                                 )}
                               </button>
@@ -989,7 +1044,14 @@ function StudentModuleContent() {
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
                                 <div className="flex items-center gap-2 mb-2">
-                                  {!isAnswered ? (
+                                  {isPolling && !feedback && isAnswered ? (
+                                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                      <div className="flex items-center gap-2">
+                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 dark:border-blue-400"></div>
+                                        Generating feedback...
+                                      </div>
+                                    </Badge>
+                                  ) : !isAnswered ? (
                                     <Badge variant="secondary" className="bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
                                       Not Answered
                                     </Badge>
@@ -1008,9 +1070,16 @@ function StudentModuleContent() {
                                         Score: {Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100)}%
                                       </Badge>
                                     </>
+                                  ) : isAnswered ? (
+                                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                      <div className="flex items-center gap-2">
+                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 dark:border-blue-400"></div>
+                                        Loading feedback...
+                                      </div>
+                                    </Badge>
                                   ) : (
-                                    <Badge variant="secondary" className="bg-gray-100 text-gray-600">
-                                      Loading feedback...
+                                    <Badge variant="secondary" className="bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                                      Not Answered
                                     </Badge>
                                   )}
                                   <Badge variant="outline">
@@ -1034,7 +1103,22 @@ function StudentModuleContent() {
                             </div>
                           </CardHeader>
                           <CardContent className="space-y-4">
-                            {!isAnswered ? (
+                            {isPolling && !feedback && isAnswered ? (
+                              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 p-8 rounded-lg text-center border border-blue-200 dark:border-blue-800">
+                                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
+                                <p className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                                  🤖 AI is analyzing your answer...
+                                </p>
+                                <p className="text-sm text-blue-700 dark:text-blue-300">
+                                  Generating personalized feedback for you. This may take a moment.
+                                </p>
+                                {pollCount > 10 && (
+                                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-3 animate-pulse">
+                                    Still working on it... Complex answers take a bit longer
+                                  </p>
+                                )}
+                              </div>
+                            ) : !isAnswered ? (
                               <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg text-center">
                                 <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                                 <p className="text-gray-600 dark:text-gray-400 font-medium">
@@ -1129,7 +1213,7 @@ function StudentModuleContent() {
                                   )}
                                 </div>
                               </>
-                            ) : (
+                            ) : isAnswered ? (
                               <div className="flex items-center justify-center py-12">
                                 <div className="text-center">
                                   {pollCount >= 40 ? (
@@ -1148,6 +1232,16 @@ function StudentModuleContent() {
                                     </>
                                   )}
                                 </div>
+                              </div>
+                            ) : (
+                              <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg text-center">
+                                <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                                <p className="text-gray-600 dark:text-gray-400 font-medium">
+                                  No answer provided for this question
+                                </p>
+                                <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                                  You did not submit an answer for this question in your attempt.
+                                </p>
                               </div>
                             )}
                           </CardContent>

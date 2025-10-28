@@ -134,6 +134,19 @@ function StudentsPageContent() {
         console.error('Error fetching module student answers:', error);
       }
 
+      // Get AI feedback for all students in this module
+      let feedbackByAnswerId = {};
+      try {
+        const feedbackResponse = await apiClient.get(`/api/student/modules/${module.id}/feedback`);
+        const allFeedback = feedbackResponse?.data || feedbackResponse || [];
+        allFeedback.forEach(feedback => {
+          feedbackByAnswerId[feedback.answer_id] = feedback;
+        });
+        console.log(`📊 [Students Page] Loaded ${allFeedback.length} AI feedback entries`);
+      } catch (err) {
+        console.log('No AI feedback available yet');
+      }
+
       // Calculate actual performance for each student using the answers we already have
       if (realStudents.length > 0 && questions && questions.length > 0 && allModuleAnswers.length > 0) {
         console.log('📊 [Students Page] Calculating performance metrics...');
@@ -143,14 +156,44 @@ function StudentsPageContent() {
 
           // Calculate performance metrics
           const totalQuestions = questions.length;
-          const answeredQuestions = studentAnswers.length;
 
-          // Calculate correct answers by comparing student answer with correct answer
-          const correctAnswers = studentAnswers.filter(answer => {
-            if (typeof answer.answer === 'object' && typeof answer.correct_answer === 'object') {
-              return JSON.stringify(answer.answer) === JSON.stringify(answer.correct_answer);
+          // Count UNIQUE questions answered (not total answers, to avoid counting multiple attempts)
+          const uniqueQuestionIds = new Set(studentAnswers.map(answer => answer.question_id));
+          const answeredQuestions = uniqueQuestionIds.size;
+
+          // For each unique question, get the most recent answer to check correctness
+          const correctAnswers = Array.from(uniqueQuestionIds).filter(questionId => {
+            // Get all answers for this question, sorted by date (most recent first)
+            const answersForQuestion = studentAnswers
+              .filter(answer => answer.question_id === questionId)
+              .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
+
+            // Check if the most recent answer is correct
+            const mostRecentAnswer = answersForQuestion[0];
+            const question = questions.find(q => q.id === questionId);
+            const questionType = (mostRecentAnswer.question_type || question?.question_type || '').toLowerCase();
+            const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice';
+
+            // For MCQ: use binary correct/incorrect
+            if (isMCQ) {
+              if (typeof mostRecentAnswer.answer === 'object' && typeof mostRecentAnswer.correct_answer === 'object') {
+                return JSON.stringify(mostRecentAnswer.answer) === JSON.stringify(mostRecentAnswer.correct_answer);
+              }
+              return mostRecentAnswer.answer === mostRecentAnswer.correct_answer;
             }
-            return answer.answer === answer.correct_answer;
+
+            // For short/essay questions: use AI score with 60% threshold
+            const feedback = feedbackByAnswerId[mostRecentAnswer.id];
+            if (feedback?.score !== null && feedback?.score !== undefined) {
+              const scorePercent = feedback.score > 1 ? feedback.score : feedback.score * 100;
+              return scorePercent >= 60; // 60% or higher counts as "correct"
+            }
+
+            // Fallback to boolean check if no score available
+            if (typeof mostRecentAnswer.answer === 'object' && typeof mostRecentAnswer.correct_answer === 'object') {
+              return JSON.stringify(mostRecentAnswer.answer) === JSON.stringify(mostRecentAnswer.correct_answer);
+            }
+            return mostRecentAnswer.answer === mostRecentAnswer.correct_answer;
           }).length;
 
           return {
@@ -158,7 +201,7 @@ function StudentsPageContent() {
             total_questions: totalQuestions,
             completed_questions: answeredQuestions,
             avg_score: answeredQuestions > 0 ? Math.round((correctAnswers / answeredQuestions) * 100) : 0,
-            progress: Math.round((answeredQuestions / totalQuestions) * 100)
+            progress: Math.min(100, Math.round((answeredQuestions / totalQuestions) * 100)) // Cap at 100%
           };
         });
 

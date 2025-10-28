@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 // RadioGroup not available - using custom implementation
 import { Label } from "@/components/ui/label";
-import { 
+import {
   ArrowLeft,
   ArrowRight,
   ArrowDown,
@@ -22,10 +22,15 @@ import {
   Eye,
   Target,
   Brain,
-  BookOpen
+  BookOpen,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw
 } from "lucide-react";
 import { apiClient } from "@/lib/auth";
 import { FullPageLoader } from "@/components/LoadingSpinner";
+import PrefillControlPanel from "@/components/PrefillControlPanel";
 
 export default function StudentTestPage() {
   const params = useParams();
@@ -48,6 +53,13 @@ export default function StudentTestPage() {
   const [feedback, setFeedback] = useState({}); // Store feedback for each question
   const [showFeedback, setShowFeedback] = useState({}); // Track which feedback is shown
   const [attempts, setAttempts] = useState({}); // Track attempt numbers for each question
+
+  // Prefill functionality states
+  const [previousAttempts, setPreviousAttempts] = useState([]); // Array of {attemptNumber, answers, feedback}
+  const [prefilledQuestions, setPrefilledQuestions] = useState(new Set()); // Track which questions are prefilled
+  const [selectedPrefillAttempt, setSelectedPrefillAttempt] = useState(null); // Which attempt to prefill from
+  const [showPrefillPanel, setShowPrefillPanel] = useState(false); // Toggle prefill UI
+  const [selectedQuestionsForPrefill, setSelectedQuestionsForPrefill] = useState(new Set()); // Individual question selection
 
   useEffect(() => {
     // Check access
@@ -156,6 +168,91 @@ export default function StudentTestPage() {
       setAnswers(existingAnswers);
       setAttempts(attemptNumbers);
 
+      // Load previous attempts data if this is attempt 2+
+      if (currentAttemptNumber > 1 && access.studentId) {
+        try {
+          const prevAttemptsData = [];
+
+          // Fetch answers and feedback for all previous attempts
+          for (let attemptNum = 1; attemptNum < currentAttemptNumber; attemptNum++) {
+            // Organize answers and feedback by question_id
+            let answersMap = {};
+            let feedbackMap = {};
+
+            try {
+              // Fetch answers for this previous attempt
+              const prevAnswersResponse = await apiClient.get(
+                `/api/student/modules/${moduleId}/my-answers?student_id=${access.studentId}&attempt=${attemptNum}`
+              );
+              const prevAnswers = prevAnswersResponse?.data || prevAnswersResponse || [];
+
+              // Fetch feedback for this previous attempt
+              const feedbackResponse = await apiClient.get(
+                `/api/student/modules/${moduleId}/feedback?student_id=${access.studentId}`
+              );
+              const allFeedback = feedbackResponse?.data || feedbackResponse || [];
+
+              // Filter feedback for this specific attempt
+              const attemptFeedback = allFeedback.filter(fb => {
+                // Match feedback to this attempt's answers
+                const answerForFeedback = prevAnswers.find(ans => ans.id === fb.answer_id);
+                return answerForFeedback !== undefined;
+              });
+
+              prevAnswers.forEach(answerRecord => {
+                if (answerRecord && answerRecord.question_id) {
+                  let answerValue;
+                  if (typeof answerRecord.answer === 'object') {
+                    answerValue = answerRecord.answer.text_response ||
+                                 answerRecord.answer.selected_option_id ||
+                                 answerRecord.answer.selected_option;
+                  } else if (typeof answerRecord.answer === 'string') {
+                    answerValue = answerRecord.answer.trim();
+                  }
+
+                  if (answerValue) {
+                    answersMap[answerRecord.question_id] = {
+                      value: answerValue,
+                      answerId: answerRecord.id
+                    };
+                  }
+                }
+              });
+
+              attemptFeedback.forEach(fb => {
+                if (fb && fb.answer_id) {
+                  const answer = prevAnswers.find(ans => ans.id === fb.answer_id);
+                  if (answer) {
+                    feedbackMap[answer.question_id] = fb;
+                  }
+                }
+              });
+
+              console.log(`📚 Loaded ${Object.keys(answersMap).length} answers from attempt ${attemptNum}`);
+            } catch (err) {
+              console.log(`📝 No data found for attempt ${attemptNum}, but still adding it to the list`);
+              // Even if no data, we still add the attempt with empty maps
+            }
+
+            // Always add the attempt, even if it has 0 answers
+            prevAttemptsData.push({
+              attemptNumber: attemptNum,
+              answers: answersMap,
+              feedback: feedbackMap
+            });
+          }
+
+          if (prevAttemptsData.length > 0) {
+            setPreviousAttempts(prevAttemptsData);
+            // Auto-select the most recent previous attempt
+            setSelectedPrefillAttempt(prevAttemptsData[prevAttemptsData.length - 1].attemptNumber);
+            console.log(`✅ Loaded ${prevAttemptsData.length} previous attempt(s)`);
+          }
+        } catch (err) {
+          console.log('📝 Could not load previous attempts:', err);
+        }
+      }
+
     } catch (error) {
       console.error('Failed to load test:', error);
 
@@ -187,6 +284,15 @@ export default function StudentTestPage() {
       ...prev,
       [questionId]: answer
     }));
+
+    // Remove prefill indicator when user manually edits the answer
+    if (prefilledQuestions.has(questionId)) {
+      setPrefilledQuestions(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(questionId);
+        return newSet;
+      });
+    }
 
     // Don't auto-save empty answers
     if (!answer || !answer.trim() || !moduleAccess) {
@@ -360,6 +466,203 @@ export default function StudentTestPage() {
     }
   };
 
+  // Prefill Functions
+  const prefillAllAnswers = async (attemptNumber) => {
+    const attemptData = previousAttempts.find(a => a.attemptNumber === attemptNumber);
+    if (!attemptData) {
+      console.error(`No data found for attempt ${attemptNumber}`);
+      return;
+    }
+
+    const newAnswers = { ...answers };
+    const newPrefilledSet = new Set(prefilledQuestions);
+
+    Object.entries(attemptData.answers).forEach(([questionId, answerData]) => {
+      newAnswers[questionId] = answerData.value;
+      newPrefilledSet.add(questionId);
+    });
+
+    setAnswers(newAnswers);
+    setPrefilledQuestions(newPrefilledSet);
+    setShowPrefillPanel(false);
+
+    const count = Object.keys(attemptData.answers).length;
+    setSuccess(`Saving ${count} prefilled answer${count !== 1 ? 's' : ''}...`);
+
+    // Save all prefilled answers to the backend
+    try {
+      const savePromises = Object.entries(attemptData.answers).map(async ([questionId, answerData]) => {
+        const question = questions.find(q => q.id === questionId);
+        if (!question) return;
+
+        const currentAttempt = attempts[questionId] || 1;
+        let formattedAnswer;
+
+        if (question.type === 'mcq') {
+          formattedAnswer = { selected_option_id: answerData.value.trim() };
+        } else {
+          formattedAnswer = { text_response: answerData.value.trim() };
+        }
+
+        await apiClient.post(`/api/student/save-answer`, {
+          student_id: moduleAccess.studentId,
+          question_id: questionId,
+          module_id: moduleId,
+          document_id: question.document_id || null,
+          answer: formattedAnswer,
+          attempt: currentAttempt
+        });
+      });
+
+      await Promise.all(savePromises);
+      setSuccess(`✓ Prefilled ${count} answer${count !== 1 ? 's' : ''} from Attempt ${attemptNumber}`);
+      setTimeout(() => setSuccess(""), 3000);
+      console.log(`✅ Prefilled and saved ${count} answers from attempt ${attemptNumber}`);
+    } catch (error) {
+      console.error('Failed to save prefilled answers:', error);
+      setError('Answers were prefilled but some failed to save. Please review and save manually.');
+      setTimeout(() => setError(""), 5000);
+    }
+  };
+
+  const prefillQuestion = async (questionId, attemptNumber) => {
+    const attemptData = previousAttempts.find(a => a.attemptNumber === attemptNumber);
+    if (!attemptData || !attemptData.answers[questionId]) {
+      console.error(`No answer found for question ${questionId} in attempt ${attemptNumber}`);
+      return;
+    }
+
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: attemptData.answers[questionId].value
+    }));
+
+    setPrefilledQuestions(prev => new Set([...prev, questionId]));
+
+    // Save the prefilled answer to the backend
+    try {
+      const question = questions.find(q => q.id === questionId);
+      if (!question) return;
+
+      const currentAttempt = attempts[questionId] || 1;
+      const answerData = attemptData.answers[questionId];
+      let formattedAnswer;
+
+      if (question.type === 'mcq') {
+        formattedAnswer = { selected_option_id: answerData.value.trim() };
+      } else {
+        formattedAnswer = { text_response: answerData.value.trim() };
+      }
+
+      await apiClient.post(`/api/student/save-answer`, {
+        student_id: moduleAccess.studentId,
+        question_id: questionId,
+        module_id: moduleId,
+        document_id: question.document_id || null,
+        answer: formattedAnswer,
+        attempt: currentAttempt
+      });
+
+      console.log(`✅ Prefilled and saved question ${questionId} from attempt ${attemptNumber}`);
+    } catch (error) {
+      console.error('Failed to save prefilled question:', error);
+    }
+  };
+
+  const prefillSelectedQuestions = async () => {
+    if (selectedQuestionsForPrefill.size === 0) {
+      setError("Please select at least one question to prefill");
+      setTimeout(() => setError(""), 2000);
+      return;
+    }
+
+    const attemptData = previousAttempts.find(a => a.attemptNumber === selectedPrefillAttempt);
+    if (!attemptData) return;
+
+    const newAnswers = { ...answers };
+    const newPrefilledSet = new Set(prefilledQuestions);
+    let count = 0;
+    const questionIdsToSave = [];
+
+    selectedQuestionsForPrefill.forEach(questionId => {
+      if (attemptData.answers[questionId]) {
+        newAnswers[questionId] = attemptData.answers[questionId].value;
+        newPrefilledSet.add(questionId);
+        questionIdsToSave.push(questionId);
+        count++;
+      }
+    });
+
+    setAnswers(newAnswers);
+    setPrefilledQuestions(newPrefilledSet);
+    setSelectedQuestionsForPrefill(new Set());
+    setShowPrefillPanel(false);
+
+    setSuccess(`Saving ${count} selected answer${count !== 1 ? 's' : ''}...`);
+
+    // Save all selected prefilled answers to the backend
+    try {
+      const savePromises = questionIdsToSave.map(async (questionId) => {
+        const question = questions.find(q => q.id === questionId);
+        if (!question) return;
+
+        const currentAttempt = attempts[questionId] || 1;
+        const answerData = attemptData.answers[questionId];
+        let formattedAnswer;
+
+        if (question.type === 'mcq') {
+          formattedAnswer = { selected_option_id: answerData.value.trim() };
+        } else {
+          formattedAnswer = { text_response: answerData.value.trim() };
+        }
+
+        await apiClient.post(`/api/student/save-answer`, {
+          student_id: moduleAccess.studentId,
+          question_id: questionId,
+          module_id: moduleId,
+          document_id: question.document_id || null,
+          answer: formattedAnswer,
+          attempt: currentAttempt
+        });
+      });
+
+      await Promise.all(savePromises);
+      setSuccess(`✓ Prefilled ${count} selected answer${count !== 1 ? 's' : ''}`);
+      setTimeout(() => setSuccess(""), 3000);
+      console.log(`✅ Prefilled and saved ${count} selected questions`);
+    } catch (error) {
+      console.error('Failed to save selected prefilled answers:', error);
+      setError('Answers were prefilled but some failed to save. Please review and save manually.');
+      setTimeout(() => setError(""), 5000);
+    }
+  };
+
+  const clearPrefill = (questionId) => {
+    setAnswers(prev => {
+      const newAnswers = { ...prev };
+      delete newAnswers[questionId];
+      return newAnswers;
+    });
+
+    setPrefilledQuestions(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(questionId);
+      return newSet;
+    });
+  };
+
+  const toggleQuestionSelection = (questionId) => {
+    setSelectedQuestionsForPrefill(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(questionId)) {
+        newSet.delete(questionId);
+      } else {
+        newSet.add(questionId);
+      }
+      return newSet;
+    });
+  };
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -425,6 +728,18 @@ export default function StudentTestPage() {
               <Badge variant="outline">
                 {getAnsweredCount()} / {questions.length} answered
               </Badge>
+              {/* Prefill Button - Show only if previous attempts exist */}
+              {previousAttempts.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPrefillPanel(!showPrefillPanel)}
+                  className="border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Prefill Answers
+                </Button>
+              )}
               {saveStatus && (
                 <div className="flex items-center gap-1 text-sm">
                   {saveStatus === 'saving' && (
@@ -459,6 +774,23 @@ export default function StudentTestPage() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 py-4">
+        {/* Prefill Control Panel */}
+        {showPrefillPanel && previousAttempts.length > 0 && (
+          <div className="mb-4">
+            <PrefillControlPanel
+              previousAttempts={previousAttempts}
+              selectedPrefillAttempt={selectedPrefillAttempt}
+              setSelectedPrefillAttempt={setSelectedPrefillAttempt}
+              selectedQuestionsForPrefill={selectedQuestionsForPrefill}
+              toggleQuestionSelection={toggleQuestionSelection}
+              prefillAllAnswers={prefillAllAnswers}
+              prefillSelectedQuestions={prefillSelectedQuestions}
+              onClose={() => setShowPrefillPanel(false)}
+              questions={questions}
+            />
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {/* Question Navigation Sidebar */}
           <div className="lg:col-span-1">
@@ -471,6 +803,7 @@ export default function StudentTestPage() {
                   {questions.map((q, index) => {
                     const hasAnswer = answers[q.id] && answers[q.id].trim();
                     const isActive = index === currentQuestion;
+                    const isPrefilled = prefilledQuestions.has(q.id);
 
                     return (
                       <button
@@ -493,6 +826,10 @@ export default function StudentTestPage() {
                           </div>
                         ) : (
                           <span className="text-base font-bold">{index + 1}</span>
+                        )}
+                        {/* Prefilled indicator badge */}
+                        {isPrefilled && (
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border-2 border-white dark:border-gray-800 rounded-full" title="Prefilled from previous attempt" />
                         )}
                       </button>
                     );
@@ -573,8 +910,31 @@ export default function StudentTestPage() {
 
                   {/* Answer Input */}
                   <div className="space-y-4">
-                    <Label className="text-base font-medium">Your Answer:</Label>
-                    
+                    <div className="flex items-center justify-between">
+                      <Label className="text-base font-medium">Your Answer:</Label>
+                      {prefilledQuestions.has(currentQ.id) && (
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            className="border-blue-400 bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300"
+                          >
+                            <FileText className="w-3 h-3 mr-1" />
+                            From Attempt {previousAttempts.find(a =>
+                              a.answers[currentQ.id]?.value === answers[currentQ.id]
+                            )?.attemptNumber || selectedPrefillAttempt}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => clearPrefill(currentQ.id)}
+                            className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
                     {currentQ?.type === 'mcq' ? (
                       <div className="space-y-2">
                         {currentQ.options && Object.entries(currentQ.options).map(([key, option]) => {

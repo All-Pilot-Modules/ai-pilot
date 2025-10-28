@@ -112,7 +112,13 @@ export function AppSidebar(props) {
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader className="p-6">
-        <div className="flex items-center gap-3 mb-6">
+        <div
+          className="flex items-center gap-3 mb-6 cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={() => router.push('/')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') router.push('/'); }}
+        >
           <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-lg">AP</span>
           </div>
