@@ -109,6 +109,20 @@ export const auth = {
     const token = this.getToken();
     if (!token) return null;
 
+    // First check sessionStorage for cached user data
+    if (typeof window !== 'undefined') {
+      const cachedUser = sessionStorage.getItem('user');
+      if (cachedUser) {
+        try {
+          return JSON.parse(cachedUser);
+        } catch (e) {
+          console.error('Error parsing cached user:', e);
+          sessionStorage.removeItem('user');
+        }
+      }
+    }
+
+    // If not in cache, fetch from API
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: {
@@ -124,7 +138,14 @@ export const auth = {
         throw new Error('Failed to fetch user data');
       }
 
-      return await response.json();
+      const userData = await response.json();
+
+      // Cache the user data in sessionStorage
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('user', JSON.stringify(userData));
+      }
+
+      return userData;
     } catch (error) {
       console.error('Get current user error:', error);
       this.logout();

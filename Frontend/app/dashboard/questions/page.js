@@ -707,12 +707,12 @@ function QuestionsPageContent() {
                             </SelectTrigger>
                             <SelectContent>
                               {questionForm.options
-                                .filter(opt => opt.trim())
                                 .map((option, index) => {
                                   const letter = String.fromCharCode(65 + index);
+                                  // Keep all 4 options even if empty, to maintain correct letter-to-index mapping
                                   return (
                                     <SelectItem key={letter} value={letter}>
-                                      {letter} - {option}
+                                      {letter} - {option || "(empty)"}
                                     </SelectItem>
                                   );
                                 })}
@@ -1121,14 +1121,13 @@ function QuestionsPageContent() {
                           {questionForm.options
                             .map((option, index) => {
                               const letter = String.fromCharCode(65 + index);
-                              if (!option.trim()) return null;
+                              // Keep all 4 options even if empty, to maintain correct letter-to-index mapping
                               return (
                                 <SelectItem key={letter} value={letter}>
-                                  {letter} - {option}
+                                  {letter} - {option || "(empty)"}
                                 </SelectItem>
                               );
-                            })
-                            .filter(Boolean)}
+                            })}
                         </SelectContent>
                       </Select>
                       {questionForm.correct_option_id && (

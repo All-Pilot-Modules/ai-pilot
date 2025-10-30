@@ -220,7 +220,7 @@ def delete_student_assignment_route(
 def get_student_answers_by_document_route(
     document_id: UUID,
     student_id: Optional[str] = Query(None, description="Filter by student ID"),
-    attempt: int = Query(1, description="Attempt number", ge=1, le=2),
+    attempt: int = Query(1, description="Attempt number", ge=1, le=5),
     db: Session = Depends(get_db)
 ):
     """
@@ -299,7 +299,7 @@ def generate_feedback_for_answer(
 def generate_batch_feedback(
     module_id: UUID,
     student_id: Optional[str] = Query(None, description="Filter by student ID"),
-    attempt: int = Query(1, description="Attempt number", ge=1, le=2),
+    attempt: int = Query(1, description="Attempt number", ge=1, le=5),
     db: Session = Depends(get_db)
 ):
     """

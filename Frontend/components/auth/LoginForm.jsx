@@ -32,7 +32,10 @@ export default function LoginForm() {
 
     try {
       await login(identifier, password);
-      router.push('/mymodules');
+
+      // Use window.location.href for full page reload to ensure fresh auth state
+      // This prevents stale state issues with client-side navigation
+      window.location.href = '/mymodules';
     } catch (error) {
       console.error('Login error:', error);
 

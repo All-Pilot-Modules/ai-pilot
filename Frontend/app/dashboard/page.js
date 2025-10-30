@@ -99,8 +99,14 @@ function DashboardContent() {
   const loadModuleData = useCallback(async () => {
     if (!user) return;
 
+    const userId = user?.id || user?.sub;
+    if (!userId) {
+      console.warn('User ID not available yet');
+      return;
+    }
+
     try {
-      const modules = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
+      const modules = await apiClient.get(`/api/modules?teacher_id=${userId}`);
       const currentModule = modules.find(m => m.name === moduleName);
 
       if (currentModule) {
@@ -125,7 +131,7 @@ function DashboardContent() {
           const questionsCount = Array.isArray(questionsData) ? questionsData.length : 0;
 
           // Get documents count (need teacher_id parameter)
-          const documentsData = await apiClient.get(`/api/documents?teacher_id=${user.id}&module_id=${currentModule.id}`);
+          const documentsData = await apiClient.get(`/api/documents?teacher_id=${userId}&module_id=${currentModule.id}`);
           const documentsCount = Array.isArray(documentsData) ? documentsData.length : 0;
 
           setModuleData({
@@ -152,7 +158,7 @@ function DashboardContent() {
 
   // Load real module data from database
   useEffect(() => {
-    if (isAuthenticated && user && moduleName) {
+    if (isAuthenticated && user && (user.id || user.sub) && moduleName) {
       loadModuleData();
     }
   }, [isAuthenticated, user, moduleName, loadModuleData]);
@@ -176,8 +182,14 @@ function DashboardContent() {
 
   const regenerateAccessCode = async () => {
     try {
+      const userId = user?.id || user?.sub;
+      if (!userId) {
+        console.warn('User ID not available');
+        return;
+      }
+
       // Get the current module
-      const modules = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
+      const modules = await apiClient.get(`/api/modules?teacher_id=${userId}`);
       const currentModule = modules.find(m => m.name === moduleName);
 
       if (currentModule) {
@@ -668,7 +680,7 @@ function DashboardContent() {
                         </p>
                       </div>
                       <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto">
-                        <Link href={`/dashboard/chatbot-settings?module=${moduleId}`}>
+                        <Link href={`/dashboard/chatbot-settings?module=${moduleId}&moduleName=${encodeURIComponent(moduleName)}`}>
                           <Settings className="w-4 h-4 mr-2" />
                           Configure
                         </Link>

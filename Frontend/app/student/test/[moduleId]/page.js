@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,12 +54,20 @@ export default function StudentTestPage() {
   const [showFeedback, setShowFeedback] = useState({}); // Track which feedback is shown
   const [attempts, setAttempts] = useState({}); // Track attempt numbers for each question
 
+  // Ref to track current answers for race condition prevention
+  const answersRef = useRef({});
+
   // Prefill functionality states
   const [previousAttempts, setPreviousAttempts] = useState([]); // Array of {attemptNumber, answers, feedback}
   const [prefilledQuestions, setPrefilledQuestions] = useState(new Set()); // Track which questions are prefilled
   const [selectedPrefillAttempt, setSelectedPrefillAttempt] = useState(null); // Which attempt to prefill from
   const [showPrefillPanel, setShowPrefillPanel] = useState(false); // Toggle prefill UI
   const [selectedQuestionsForPrefill, setSelectedQuestionsForPrefill] = useState(new Set()); // Individual question selection
+
+  // Keep answersRef in sync with answers state
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
 
   useEffect(() => {
     // Check access
@@ -142,11 +150,12 @@ export default function StudentTestPage() {
                 answerValue = answerRecord.answer.text_response ||
                              answerRecord.answer.selected_option_id ||
                              answerRecord.answer.selected_option;
-              } else if (typeof answerRecord.answer === 'string' && answerRecord.answer.trim()) {
-                answerValue = answerRecord.answer.trim();
+              } else if (typeof answerRecord.answer === 'string') {
+                answerValue = answerRecord.answer;
               }
 
-              if (answerValue) {
+              // Only include answers with actual content (not empty or whitespace-only)
+              if (answerValue && typeof answerValue === 'string' && answerValue.trim()) {
                 existingAnswers[answerRecord.question_id] = answerValue;
               }
             }
@@ -207,10 +216,11 @@ export default function StudentTestPage() {
                                  answerRecord.answer.selected_option_id ||
                                  answerRecord.answer.selected_option;
                   } else if (typeof answerRecord.answer === 'string') {
-                    answerValue = answerRecord.answer.trim();
+                    answerValue = answerRecord.answer;
                   }
 
-                  if (answerValue) {
+                  // Only include answers with actual content (not empty or whitespace-only)
+                  if (answerValue && typeof answerValue === 'string' && answerValue.trim()) {
                     answersMap[answerRecord.question_id] = {
                       value: answerValue,
                       answerId: answerRecord.id
@@ -230,16 +240,20 @@ export default function StudentTestPage() {
 
               console.log(`📚 Loaded ${Object.keys(answersMap).length} answers from attempt ${attemptNum}`);
             } catch (err) {
-              console.log(`📝 No data found for attempt ${attemptNum}, but still adding it to the list`);
-              // Even if no data, we still add the attempt with empty maps
+              console.log(`📝 No data found for attempt ${attemptNum}`);
+              // If no data, answersMap will remain empty
             }
 
-            // Always add the attempt, even if it has 0 answers
-            prevAttemptsData.push({
-              attemptNumber: attemptNum,
-              answers: answersMap,
-              feedback: feedbackMap
-            });
+            // Only add the attempt if it has at least one answer (for prefilling to be useful)
+            if (Object.keys(answersMap).length > 0) {
+              prevAttemptsData.push({
+                attemptNumber: attemptNum,
+                answers: answersMap,
+                feedback: feedbackMap
+              });
+            } else {
+              console.log(`⏭️ Skipping attempt ${attemptNum} - no answers to prefill from`);
+            }
           }
 
           if (prevAttemptsData.length > 0) {
@@ -297,6 +311,27 @@ export default function StudentTestPage() {
     // Don't auto-save empty answers
     if (!answer || !answer.trim() || !moduleAccess) {
       setSaveStatus(null);
+
+      // RACE CONDITION FIX: Also tell backend to delete any existing answer for this question
+      // This handles the case where user typed, auto-save started, then user deleted text
+      if (moduleAccess && questionId) {
+        const question = questions.find(q => q.id === questionId);
+        if (question) {
+          const currentAttempt = attempts[questionId] || 1;
+          // Send empty answer to trigger backend deletion
+          apiClient.post(`/api/student/save-answer`, {
+            student_id: moduleAccess.studentId,
+            question_id: questionId,
+            module_id: moduleId,
+            document_id: question.document_id || null,
+            answer: { text_response: "" }, // Empty will trigger deletion in backend
+            attempt: currentAttempt
+          }).catch(err => {
+            console.log('Failed to clear answer:', err);
+          });
+        }
+      }
+
       return;
     }
 
@@ -314,9 +349,19 @@ export default function StudentTestPage() {
       const saveAnswer = async () => {
         try {
           setSaveStatus('saving');
+
+          // RACE CONDITION FIX: Check if answer is still valid before saving
+          // Use ref to get the LATEST answer value, not the captured closure value
+          const currentAnswer = answersRef.current[questionId];
+          if (!currentAnswer || !currentAnswer.trim()) {
+            console.log(`⏭️ Skipping MCQ save - answer was cleared`);
+            setSaveStatus(null);
+            return;
+          }
+
           // Simplified format: just store the option ID
           const formattedAnswer = {
-            selected_option_id: answer.trim()
+            selected_option_id: currentAnswer.trim()
           };
           const currentAttempt = attempts[questionId] || 1;
 
@@ -349,7 +394,17 @@ export default function StudentTestPage() {
       const timeoutId = setTimeout(async () => {
         try {
           setSaveStatus('saving');
-          const formattedAnswer = { text_response: answer.trim() };
+
+          // RACE CONDITION FIX: Re-check the current answer value, not the old captured value
+          // Use ref to get the LATEST answer value, not the captured closure value
+          const currentAnswer = answersRef.current[questionId];
+          if (!currentAnswer || !currentAnswer.trim()) {
+            console.log(`⏭️ Skipping text save for question ${questionId} - answer was cleared`);
+            setSaveStatus(null);
+            return;
+          }
+
+          const formattedAnswer = { text_response: currentAnswer.trim() };
           const currentAttempt = attempts[questionId] || 1;
 
           // Use new save-answer endpoint for draft saves (no feedback generation)
@@ -871,16 +926,6 @@ export default function StudentTestPage() {
                   {/* Question Text */}
                   <div className="prose dark:prose-invert max-w-none">
                     <p className="text-lg leading-relaxed whitespace-pre-wrap">{currentQ?.text}</p>
-                    {currentQ?.image_url && (
-                      <div className="mt-4">
-                        <img
-                          src={currentQ.image_url}
-                          alt="Question illustration"
-                          className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
-                          loading="lazy"
-                        />
-                      </div>
-                    )}
                   </div>
 
                   {/* Learning Outcome */}

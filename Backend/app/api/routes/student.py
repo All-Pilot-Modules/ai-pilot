@@ -326,7 +326,7 @@ def submit_student_answer(
 def get_my_answers(
     document_id: UUID,
     student_id: str = Query(..., description="Student ID"),
-    attempt: int = Query(1, description="Attempt number", ge=1, le=2),
+    attempt: int = Query(1, description="Attempt number", ge=1, le=5),
     db: Session = Depends(get_db)
 ):
     """
@@ -340,7 +340,7 @@ def get_my_answers(
 def get_assignment_progress(
     document_id: UUID,
     student_id: str = Query(..., description="Student ID"),
-    attempt: int = Query(1, description="Attempt number", ge=1, le=2),
+    attempt: int = Query(1, description="Attempt number", ge=1, le=5),
     db: Session = Depends(get_db)
 ):
     """
@@ -385,7 +385,7 @@ def delete_my_answer(
 def get_my_answer_for_question(
     question_id: UUID,
     student_id: str = Query(..., description="Student ID"),
-    attempt: int = Query(1, description="Attempt number", ge=1, le=2),
+    attempt: int = Query(1, description="Attempt number", ge=1, le=5),
     db: Session = Depends(get_db)
 ):
     """
@@ -401,7 +401,7 @@ def get_my_answer_for_question(
 def get_my_module_answers(
     module_id: UUID,
     student_id: str = Query(..., description="Student ID"),
-    attempt: int = Query(1, description="Attempt number", ge=1, le=2),
+    attempt: int = Query(1, description="Attempt number", ge=1, le=5),
     db: Session = Depends(get_db)
 ):
     """
@@ -434,7 +434,7 @@ def get_my_module_answers(
 def get_module_progress(
     module_id: UUID,
     student_id: str = Query(..., description="Student ID"),
-    attempt: int = Query(1, description="Attempt number", ge=1, le=2),
+    attempt: int = Query(1, description="Attempt number", ge=1, le=5),
     db: Session = Depends(get_db)
 ):
     """
@@ -504,7 +504,7 @@ def get_module_feedback(
 def get_question_feedback(
     question_id: UUID,
     student_id: str = Query(..., description="Student ID"),
-    attempt: int = Query(1, description="Attempt number", ge=1, le=2),
+    attempt: int = Query(1, description="Attempt number", ge=1, le=5),
     db: Session = Depends(get_db)
 ):
     """
@@ -533,10 +533,14 @@ def save_student_answer(
     """
     Save student answer as draft (auto-save functionality).
     This does NOT generate feedback - it only saves the answer.
+
+    VALIDATION: If answer is empty or whitespace-only, existing answer is deleted
+    instead of saving empty data to the database.
     """
     # SECURITY: Verify question is active before allowing save
     from app.crud.question import get_question_by_id
     from app.models.question import QuestionStatus
+    from app.crud.student_answer import delete_student_answer
 
     question = get_question_by_id(db, str(answer_data.question_id))
     if not question:
@@ -548,11 +552,47 @@ def save_student_answer(
             detail="This question is not yet available. Please contact your teacher."
         )
 
+    # VALIDATION: Check if answer content is empty or whitespace-only
+    answer_content = None
+    if isinstance(answer_data.answer, dict):
+        # Extract content from answer dict
+        answer_content = (
+            answer_data.answer.get("text_response") or
+            answer_data.answer.get("selected_option_id") or
+            answer_data.answer.get("selected_option") or
+            ""
+        )
+    elif isinstance(answer_data.answer, str):
+        answer_content = answer_data.answer
+
+    # Check if content is empty or only whitespace
+    is_empty = not answer_content or not str(answer_content).strip()
+
     # Check if answer already exists for this attempt
     existing_answer = get_student_answer(
         db, answer_data.student_id, answer_data.question_id, answer_data.attempt
     )
 
+    if is_empty:
+        # If answer is empty/whitespace, delete existing record (if any)
+        if existing_answer:
+            delete_student_answer(db, existing_answer.id)
+            logger.info(f"🗑️ Deleted empty answer for question {answer_data.question_id}, attempt {answer_data.attempt}")
+            return {
+                "success": True,
+                "answer": None,
+                "message": "Empty answer removed"
+            }
+        else:
+            # No existing answer and new answer is empty - nothing to do
+            logger.info(f"⏭️ Skipped saving empty answer for question {answer_data.question_id}")
+            return {
+                "success": True,
+                "answer": None,
+                "message": "Empty answer not saved"
+            }
+
+    # Answer has content - proceed with normal save logic
     if existing_answer:
         # Update existing answer
         update_data = StudentAnswerUpdate(answer=answer_data.answer)

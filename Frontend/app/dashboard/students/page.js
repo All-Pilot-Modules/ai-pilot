@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Search, Users, AlertCircle, X, Calendar, Clock, Award, BookOpen, TrendingUp, User, Edit, Trash2, MoreHorizontal, UserPlus, Save, CheckCircle, XCircle, HelpCircle, List, ExternalLink, Filter, SortAsc, SortDesc, Download, FileText, FileJson, GraduationCap, Target, BarChart3, Activity, Zap } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { apiClient } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 
@@ -40,6 +40,7 @@ function StudentsPageContent() {
   const [error, setError] = useState('');
   const [moduleData, setModuleData] = useState(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportButtonRef = useRef(null);
 
   // Configurable thresholds - can be set from module config or use defaults
   // These control how students are categorized and displayed:
@@ -221,6 +222,8 @@ function StudentsPageContent() {
             ...student,
             total_questions: totalQuestions,
             completed_questions: answeredQuestions,
+            correct_answers: correctAnswers,
+            incorrect_answers: answeredQuestions - correctAnswers,
             avg_score: answeredQuestions > 0 ? Math.round((correctAnswers / answeredQuestions) * 100) : 0,
             progress: Math.min(100, Math.round((answeredQuestions / totalQuestions) * 100)) // Cap at 100%
           };
@@ -381,81 +384,48 @@ function StudentsPageContent() {
     return sortDirection === 'asc' ? <SortAsc className="w-4 h-4" /> : <SortDesc className="w-4 h-4" />;
   };
 
-  // Export students data as CSV
-  const exportStudentsCSV = () => {
-    if (!filteredStudents.length) return;
+  // Export comprehensive module data as Excel (using backend endpoint)
+  const exportStudentsCSV = async () => {
+    if (!moduleData) return;
 
-    const csvHeaders = ['Student ID', 'Progress (%)', 'Average Score (%)', 'Questions Completed', 'Total Questions', 'Last Access'];
-    
-    const csvData = filteredStudents.map(student => [
-      student.student_id,
-      student.progress || 0,
-      student.avg_score || 0,
-      student.completed_questions || 0,
-      student.total_questions || 0,
-      student.last_access ? new Date(student.last_access).toLocaleString() : 'Never'
-    ]);
+    try {
+      // Call backend export endpoint
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/modules/${moduleData.id}/export`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
+        },
+      });
 
-    const csvContent = [
-      `Module: ${moduleData?.name || moduleName}`,
-      `Total Students: ${filteredStudents.length}`,
-      `Export Date: ${new Date().toLocaleString()}`,
-      '',
-      csvHeaders.join(','),
-      ...csvData.map(row => row.join(','))
-    ].join('\n');
+      if (!response.ok) {
+        throw new Error(`Export failed: ${response.statusText}`);
+      }
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `students-${moduleData?.name || moduleName}-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      // Get the blob from response
+      const blob = await response.blob();
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${moduleData.name}_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting module data:', error);
+      alert('Failed to export module data. Please try again.');
+    }
   };
 
-  // Export students data as JSON
-  const exportStudentsJSON = () => {
-    if (!filteredStudents.length) return;
-
-    const exportData = {
-      module: {
-        name: moduleData?.name || moduleName,
-        description: moduleData?.description
-      },
-      exportInfo: {
-        totalStudents: filteredStudents.length,
-        exportDate: new Date().toISOString(),
-        filters: {
-          searchTerm,
-          progressFilter,
-          sortField,
-          sortDirection
-        }
-      },
-      students: filteredStudents.map(student => ({
-        studentId: student.student_id,
-        progress: student.progress || 0,
-        averageScore: student.avg_score || 0,
-        questionsCompleted: student.completed_questions || 0,
-        totalQuestions: student.total_questions || 0,
-        lastAccess: student.last_access,
-        correctAnswers: student.correct_answers || 0,
-        incorrectAnswers: student.incorrect_answers || 0
-      }))
-    };
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `students-${moduleData?.name || moduleName}-${new Date().toISOString().split('T')[0]}.json`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // Export comprehensive module data as Excel (same as CSV - backend returns Excel)
+  const exportStudentsJSON = async () => {
+    // Both options now download Excel from backend
+    await exportStudentsCSV();
   };
 
 
@@ -560,7 +530,7 @@ function StudentsPageContent() {
         <div className="min-h-screen bg-background">
           <div className="max-w-7xl mx-auto px-6 py-8">
             {/* Header with Gradient Background */}
-            <div className="mb-8 relative overflow-hidden">
+            <div className="mb-8 relative">
               <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 dark:from-blue-500/5 dark:via-purple-500/5 dark:to-pink-500/5 rounded-2xl"></div>
               <div className="relative p-8 rounded-2xl border border-border/50 backdrop-blur-sm">
                 <div className="flex items-center justify-between">
@@ -593,41 +563,49 @@ function StudentsPageContent() {
                       Export Data
                     </Button>
                     {showExportMenu && students.length > 0 && (
-                      <div className="absolute right-0 top-12 w-56 bg-card border border-border rounded-xl shadow-xl z-10 overflow-hidden">
-                        <div className="p-2">
-                          <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase">Export Format</div>
-                          <button
-                            onClick={() => {
-                              exportStudentsCSV();
-                              setShowExportMenu(false);
-                            }}
-                            className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted rounded-lg flex items-center gap-3 transition-colors"
-                          >
-                            <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
-                              <FileText className="w-4 h-4 text-green-600 dark:text-green-400" />
-                            </div>
-                            <div>
-                              <div className="font-medium">CSV File</div>
-                              <div className="text-xs text-muted-foreground">For Excel & Sheets</div>
-                            </div>
-                          </button>
-                          <button
-                            onClick={() => {
-                              exportStudentsJSON();
-                              setShowExportMenu(false);
-                            }}
-                            className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted rounded-lg flex items-center gap-3 transition-colors"
-                          >
-                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                              <FileJson className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <div>
-                              <div className="font-medium">JSON File</div>
-                              <div className="text-xs text-muted-foreground">For APIs & Tools</div>
-                            </div>
-                          </button>
+                      <>
+                        {/* Backdrop overlay to close menu on outside click */}
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowExportMenu(false)}
+                        />
+                        {/* Dropdown menu - appears ABOVE the button */}
+                        <div className="absolute right-0 bottom-full mb-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+                          <div className="p-2">
+                            <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Export Format</div>
+                            <button
+                              onClick={() => {
+                                exportStudentsCSV();
+                                setShowExportMenu(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex items-center gap-3 transition-colors"
+                            >
+                              <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                                <FileText className="w-4 h-4 text-green-600 dark:text-green-400" />
+                              </div>
+                              <div>
+                                <div className="font-medium text-gray-900 dark:text-gray-100">Excel Export</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">Complete module data (8 sheets)</div>
+                              </div>
+                            </button>
+                            <button
+                              onClick={() => {
+                                exportStudentsJSON();
+                                setShowExportMenu(false);
+                              }}
+                              className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex items-center gap-3 transition-colors"
+                            >
+                              <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                              </div>
+                              <div>
+                                <div className="font-medium text-gray-900 dark:text-gray-100">Excel Export</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">Complete module data (8 sheets)</div>
+                              </div>
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      </>
                     )}
                   </div>
                 </div>

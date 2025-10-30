@@ -147,11 +147,66 @@ function StudentModuleContent() {
     setConsentChecked(true);
   };
 
-  // Effect to update feedbackData when selectedAttempt changes
+  // Effect to update feedbackData and answeredQuestions when selectedAttempt changes
   useEffect(() => {
     const currentFeedback = feedbackByAttempt[selectedAttempt] || {};
     setFeedbackData(currentFeedback);
-  }, [selectedAttempt, feedbackByAttempt]);
+
+    // Update answered questions for the selected attempt
+    const updateAnsweredQuestionsForAttempt = async () => {
+      if (!moduleAccess?.studentId) return;
+
+      try {
+        // Fetch answers for the selected attempt only
+        const answersResponse = await apiClient.get(
+          `/api/student/modules/${moduleId}/my-answers?student_id=${moduleAccess.studentId}&attempt=${selectedAttempt}`
+        );
+        const submittedAnswers = answersResponse?.data || answersResponse || [];
+
+        // Build answered map for this specific attempt with content validation
+        const answeredMap = {};
+        submittedAnswers.forEach(answer => {
+          if (!answer || !answer.question_id) return;
+
+          // Extract answer content
+          let answerContent = null;
+          if (typeof answer.answer === 'object' && answer.answer) {
+            answerContent = (
+              answer.answer.text_response ||
+              answer.answer.selected_option_id ||
+              answer.answer.selected_option ||
+              ""
+            );
+          } else if (typeof answer.answer === 'string') {
+            answerContent = answer.answer;
+          }
+
+          // Only mark as answered if content is non-empty and not just whitespace
+          if (answerContent && String(answerContent).trim()) {
+            answeredMap[answer.question_id] = true;
+          }
+        });
+
+        // Also include questions that have feedback (in case answers were deleted but feedback exists)
+        Object.keys(currentFeedback).forEach(questionId => {
+          answeredMap[questionId] = true;
+        });
+
+        setAnsweredQuestions(answeredMap);
+        console.log(`📝 Attempt ${selectedAttempt}: ${Object.keys(answeredMap).length} questions answered`);
+      } catch (err) {
+        console.log(`No answers found for attempt ${selectedAttempt}`);
+        // If no answers found, just use feedback as the source of truth
+        const answeredMap = {};
+        Object.keys(currentFeedback).forEach(questionId => {
+          answeredMap[questionId] = true;
+        });
+        setAnsweredQuestions(answeredMap);
+      }
+    };
+
+    updateAnsweredQuestionsForAttempt();
+  }, [selectedAttempt, feedbackByAttempt, moduleAccess, moduleId]);
 
   // Effect to start polling when tab changes to feedback
   useEffect(() => {
@@ -197,7 +252,6 @@ function StudentModuleContent() {
 
       // Group feedback by attempt
       const byAttempt = {};
-      const answeredMap = {};
 
       if (response && Array.isArray(response)) {
         response.forEach(feedbackItem => {
@@ -210,33 +264,10 @@ function StudentModuleContent() {
 
           // Add feedback to the attempt group
           byAttempt[attempt][feedbackItem.question_id] = feedbackItem;
-
-          // Track answered questions across all attempts
-          answeredMap[feedbackItem.question_id] = true;
         });
-      }
-
-      // Also fetch submitted answers to track which questions were answered
-      // (even if feedback hasn't been generated yet)
-      try {
-        const answersResponse = await apiClient.get(
-          `/api/student/modules/${moduleId}/my-answers?student_id=${access.studentId}`
-        );
-        const submittedAnswers = answersResponse?.data || answersResponse || [];
-
-        submittedAnswers.forEach(answer => {
-          if (answer && answer.question_id) {
-            answeredMap[answer.question_id] = true;
-          }
-        });
-
-        console.log(`📝 Found ${submittedAnswers.length} submitted answers`);
-      } catch (err) {
-        console.log('No submitted answers found or error fetching answers');
       }
 
       setFeedbackByAttempt(byAttempt);
-      setAnsweredQuestions(answeredMap);
 
       // Note: feedbackData will be set by the useEffect when selectedAttempt is determined
       // Don't set it here as selectedAttempt might still be the default value (1)
@@ -937,16 +968,29 @@ function StudentModuleContent() {
                                 Ready for attempt {nextAttemptNumber}?
                               </p>
                               <p className="text-sm text-gray-600 dark:text-gray-400">
-                                Review the feedback below, then start fresh with empty answers to improve your score
+                                {isPolling
+                                  ? "Please wait for feedback generation to complete before starting the next attempt"
+                                  : "Review the feedback below, then start fresh with empty answers to improve your score"
+                                }
                               </p>
                             </div>
                             <Button
                               onClick={() => router.push(`/student/test/${moduleId}`)}
-                              className="bg-orange-600 hover:bg-orange-700 text-white px-6"
+                              disabled={isPolling}
+                              className="bg-orange-600 hover:bg-orange-700 text-white px-6 disabled:opacity-50 disabled:cursor-not-allowed"
                               size="lg"
                             >
-                              <Target className="w-4 h-4 mr-2" />
-                              Start Attempt {nextAttemptNumber}
+                              {isPolling ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                  Generating feedback...
+                                </>
+                              ) : (
+                                <>
+                                  <Target className="w-4 h-4 mr-2" />
+                                  Start Attempt {nextAttemptNumber}
+                                </>
+                              )}
                             </Button>
                           </div>
                         </div>

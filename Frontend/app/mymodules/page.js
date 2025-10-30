@@ -66,16 +66,29 @@ export default function MyModules() {
 
   const fetchModules = async () => {
     try {
-      const data = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
+      // Ensure user and user.id are available
+      const userId = user?.id || user?.sub;
+      if (!userId) {
+        console.warn('⚠️ fetchModules: User ID not available yet', { user, isAuthenticated });
+        return;
+      }
+
+      console.log('📚 Fetching modules for user:', userId);
+      const data = await apiClient.get(`/api/modules?teacher_id=${userId}`);
       setModules(data);
+      console.log(`✅ Loaded ${data?.length || 0} modules`);
     } catch (error) {
-      console.error('Failed to fetch modules:', error);
+      console.error('❌ Failed to fetch modules:', error);
     }
   };
 
   useEffect(() => {
-    if (isAuthenticated && user) {
+    console.log('🔍 MyModules useEffect:', { isAuthenticated, hasUser: !!user, userId: user?.id || user?.sub });
+
+    if (isAuthenticated && user && (user.id || user.sub)) {
       fetchModules();
+    } else {
+      console.log('⏳ Waiting for auth to complete...', { isAuthenticated, user });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user]);
@@ -86,9 +99,15 @@ export default function MyModules() {
 
     setIsSubmitting(true);
     try {
+      // Ensure user ID is available
+      const userId = user?.id || user?.sub;
+      if (!userId) {
+        throw new Error('User ID not available. Please try logging in again.');
+      }
+
       // Create module first
       const moduleData = {
-        teacher_id: user.id,
+        teacher_id: userId,
         name: formData.name,
         description: formData.description,
         is_active: true,

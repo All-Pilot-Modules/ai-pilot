@@ -50,13 +50,15 @@ def parse_testbank_text_to_questions(raw_text: str, module_id: UUID, document_id
 
             q_type = "mcq" if options else "short"
 
-            # For MCQ questions, we want to store the letter (A, B, C, D, E)
-            # For short answers, we store the text answer
+            # For MCQ questions: use correct_option_id (stores letter A, B, C, D, E)
+            # For short/long answers: use correct_answer (stores text)
+            correct_option_id = None
             correct_answer = None
+
             if q_type == "mcq":
-                correct_answer = correct_answer_letter  # Store the letter (A, B, C, D, E)
+                correct_option_id = correct_answer_letter  # Store the letter (A, B, C, D, E)
                 # Debug: Warn if MCQ has no answer
-                if not correct_answer:
+                if not correct_option_id:
                     print(f"⚠️ Question {len(questions) + 1} missing answer: {q_text[:50]}...")
             elif q_type == "short":
                 correct_answer = correct_answer_letter  # For short answers, store the text
@@ -69,7 +71,8 @@ def parse_testbank_text_to_questions(raw_text: str, module_id: UUID, document_id
                 "slide_number": None,
                 "question_order": question_counter,
                 "options": options if options else None,
-                "correct_answer": correct_answer,
+                "correct_option_id": correct_option_id,  # MCQ correct answer letter
+                "correct_answer": correct_answer,  # Short/long answer text
                 "learning_outcome": learning_outcome,
                 "bloom_taxonomy": bloom_taxonomy,
                 "image_url": None,

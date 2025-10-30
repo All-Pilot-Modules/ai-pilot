@@ -1,16 +1,19 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Save, RotateCcw, AlertCircle, CheckCircle2, Sparkles } from "lucide-react";
+import { Brain, Save, RotateCcw, AlertCircle, CheckCircle2, Sparkles, ArrowLeft } from "lucide-react";
 import { apiClient } from "@/lib/auth";
 
 function ChatbotSettingsContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const moduleId = searchParams.get('module');
+  const moduleName = searchParams.get('moduleName');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -106,6 +109,37 @@ function ChatbotSettingsContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
       <div className="max-w-5xl mx-auto px-6 py-8">
+        {/* Breadcrumb Navigation */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-3">
+            <Link href="/dashboard" className="hover:text-gray-900 dark:hover:text-gray-100">
+              Dashboard
+            </Link>
+            <span>/</span>
+            {moduleName && (
+              <>
+                <Link
+                  href={`/dashboard?module=${encodeURIComponent(moduleName)}`}
+                  className="hover:text-gray-900 dark:hover:text-gray-100"
+                >
+                  {moduleName}
+                </Link>
+                <span>/</span>
+              </>
+            )}
+            <span className="text-gray-900 dark:text-gray-100">Chatbot Settings</span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => moduleName ? router.push(`/dashboard?module=${encodeURIComponent(moduleName)}`) : router.back()}
+            className="mb-4"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Manage
+          </Button>
+        </div>
+
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
