@@ -8,8 +8,8 @@ export default async function handler(req, res) {
 
   const db = await getDb(module);
 
-  if (req.method === "GET") {
-    try {
+  try {
+    if (req.method === "GET") {
       if (id) {
         // Get one student
         const { rows } = await db.query("SELECT * FROM students WHERE id = $1", [id]);
@@ -22,18 +22,13 @@ export default async function handler(req, res) {
         const { rows } = await db.query("SELECT * FROM students");
         return res.status(200).json(rows);
       }
-    } catch (err) {
-      console.error("DB error:", err);
-      return res.status(500).json({ error: "Internal Server Error" });
-    }
-  }
-
-  else if (req.method === "DELETE") {
-    if (!id) {
-      return res.status(400).json({ error: "Student ID is required for deletion" });
     }
 
-    try {
+    else if (req.method === "DELETE") {
+      if (!id) {
+        return res.status(400).json({ error: "Student ID is required for deletion" });
+      }
+
       // Step 1: Delete from child tables first
       await db.query("DELETE FROM ai_feedback WHERE student_id = $1", [id]);
       await db.query("DELETE FROM student_answers WHERE student_id = $1", [id]);
@@ -46,13 +41,15 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({ message: "Student and related data deleted" });
-    } catch (err) {
-      console.error("Delete error:", err);
-      return res.status(500).json({ error: "Failed to delete student" });
     }
-  }
 
-  else {
-    return res.status(405).json({ error: "Method Not Allowed" });
+    else {
+      return res.status(405).json({ error: "Method Not Allowed" });
+    }
+  } catch (err) {
+    console.error("DB error:", err);
+    return res.status(500).json({ error: "Internal Server Error" });
+  } finally {
+    await db.end();
   }
 }

@@ -7,11 +7,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Module name is required (e.g. ?module=IEP_LAURA)" });
   }
 
-  const db =await getDb(module);
+  const db = await getDb(module);
 
-  // ✅ GET handler
-  if (req.method === "GET") {
-    try {
+  try {
+    // ✅ GET handler
+    if (req.method === "GET") {
       if (id) {
         const { rows } = await db.query("SELECT * FROM student_answers WHERE id = $1", [id]);
 
@@ -24,15 +24,10 @@ export default async function handler(req, res) {
         const { rows } = await db.query("SELECT * FROM student_answers");
         return res.status(200).json(rows);
       }
-    } catch (err) {
-      console.error("DB error:", err);
-      return res.status(500).json({ error: "Internal Server Error" });
     }
-  }
 
-  // ✅ DELETE handler
-  else if (req.method === "DELETE") {
-    try {
+    // ✅ DELETE handler
+    else if (req.method === "DELETE") {
       const { rowCount } = await db.query("DELETE FROM student_answers WHERE id = $1", [id]);
 
       if (rowCount === 0) {
@@ -40,15 +35,17 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({ message: "Student_answer deleted successfully" });
-    } catch (err) {
-      console.error("DB delete error:", err);
-      return res.status(500).json({ error: "Failed to delete student answer" });
     }
-  }
 
-  // ❌ Unsupported method
-  else {
-    res.setHeader("Allow", ["GET", "DELETE"]);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
+    // ❌ Unsupported method
+    else {
+      res.setHeader("Allow", ["GET", "DELETE"]);
+      return res.status(405).end(`Method ${req.method} Not Allowed`);
+    }
+  } catch (err) {
+    console.error("DB error:", err);
+    return res.status(500).json({ error: "Internal Server Error" });
+  } finally {
+    await db.end();
   }
 }

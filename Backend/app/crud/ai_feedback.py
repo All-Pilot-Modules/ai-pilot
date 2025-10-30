@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from app.models.ai_feedback import AIFeedback
 from app.models.student_answer import StudentAnswer
 from app.schemas.ai_feedback import AIFeedbackCreate
@@ -6,14 +7,17 @@ from typing import List, Optional
 from uuid import UUID
 
 def create_feedback(db: Session, feedback: AIFeedbackCreate) -> AIFeedback:
-    """Create new AI feedback record"""
+    """Create new AI feedback record with proper race condition handling"""
     import logging
     logger = logging.getLogger(__name__)
 
     logger.info(f"🔍 CRUD: create_feedback called for answer_id: {feedback.answer_id}")
 
-    # Check if feedback already exists for this answer
-    existing = db.query(AIFeedback).filter(AIFeedback.answer_id == feedback.answer_id).first()
+    # Use a database-level lock to prevent race conditions
+    # Query with FOR UPDATE to lock the row if it exists
+    existing = db.query(AIFeedback).filter(
+        AIFeedback.answer_id == feedback.answer_id
+    ).with_for_update().first()
 
     if existing:
         # Update existing feedback
@@ -35,12 +39,34 @@ def create_feedback(db: Session, feedback: AIFeedbackCreate) -> AIFeedback:
         feedback_data=feedback.feedback_data
     )
 
-    db.add(db_feedback)
-    logger.info(f"💾 CRUD: Committing new feedback to database")
-    db.commit()
-    db.refresh(db_feedback)
-    logger.info(f"✅ CRUD: Created new feedback with ID: {db_feedback.id}")
-    return db_feedback
+    try:
+        db.add(db_feedback)
+        logger.info(f"💾 CRUD: Committing new feedback to database")
+        db.commit()
+        db.refresh(db_feedback)
+        logger.info(f"✅ CRUD: Created new feedback with ID: {db_feedback.id}")
+        return db_feedback
+    except IntegrityError:
+        # Race condition: another transaction created the feedback
+        # Rollback and fetch the existing record
+        logger.warning(f"⚠️ CRUD: IntegrityError caught - feedback already exists, fetching existing record")
+        db.rollback()
+        existing = db.query(AIFeedback).filter(
+            AIFeedback.answer_id == feedback.answer_id
+        ).first()
+        if existing:
+            # Update the existing record with new data
+            existing.is_correct = feedback.is_correct
+            existing.score = feedback.score
+            existing.feedback_data = feedback.feedback_data
+            db.commit()
+            db.refresh(existing)
+            logger.info(f"✅ CRUD: Updated existing feedback after race condition, ID: {existing.id}")
+            return existing
+        else:
+            # This should not happen, but raise if it does
+            logger.error(f"❌ CRUD: IntegrityError but no existing record found")
+            raise
 
 def get_feedback_by_answer(db: Session, answer_id: UUID) -> Optional[AIFeedback]:
     """Get feedback for a specific answer"""

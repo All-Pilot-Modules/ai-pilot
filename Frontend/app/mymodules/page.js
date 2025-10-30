@@ -203,6 +203,7 @@ export default function MyModules() {
     }
   };
 
+  // Show loading while auth is initializing
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -211,6 +212,7 @@ export default function MyModules() {
     );
   }
 
+  // Check authentication (now checks token directly, not user state)
   if (!isAuthenticated) {
     return (
       <div className="p-8 text-center">

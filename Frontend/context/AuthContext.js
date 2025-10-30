@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/auth';
 
 const AuthContext = createContext({});
@@ -8,6 +9,7 @@ const AuthContext = createContext({});
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     const initAuth = async () => {
@@ -29,8 +31,8 @@ export const AuthProvider = ({ children }) => {
   const login = async (identifier, password) => {
     try {
       const result = await auth.login(identifier, password);
-      const userData = await auth.getCurrentUser();
-      setUser(userData);
+      // User data is now in result.user from backend
+      setUser(result.user);
       return result;
     } catch (error) {
       throw error;
@@ -48,6 +50,8 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     auth.logout();
     setUser(null);
+    // Use Next.js router for better UX
+    router.push('/');
   };
 
   const value = {
@@ -56,7 +60,8 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     loading,
-    isAuthenticated: !!user,
+    // Check token directly, not user state (prevents race condition)
+    isAuthenticated: auth.isAuthenticated(),
   };
 
   return (

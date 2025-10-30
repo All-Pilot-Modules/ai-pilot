@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import jwt
 from jwt import PyJWTError
@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.user import User
 from app.schemas.user import TokenData
+from app.core.config import JWT_SECRET
 
 # Password hashing
 pwd_context = CryptContext(
@@ -20,9 +21,12 @@ pwd_context = CryptContext(
 )
 
 # JWT settings
-SECRET_KEY = "your-secret-key-here"  # In production, use environment variable
+if not JWT_SECRET:
+    raise ValueError("JWT_SECRET environment variable is not set")
+SECRET_KEY = JWT_SECRET
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+REFRESH_TOKEN_EXPIRE_DAYS = 7  # Refresh token valid for 7 days
 
 # HTTP Bearer token scheme
 security = HTTPBearer()
@@ -45,10 +49,21 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     """Create a JWT access token."""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire, "type": "access"})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None):
+    """Create a JWT refresh token."""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 

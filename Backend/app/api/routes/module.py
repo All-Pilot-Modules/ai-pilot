@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.schemas.module import ModuleCreate, ModuleOut, ConsentFormUpdate
 from app.schemas.student_enrollment import WaiverStatusUpdate
@@ -368,7 +368,7 @@ def submit_module_consent(
 
     # Update consent status
     enrollment.waiver_status = waiver_data.waiver_status
-    enrollment.consent_submitted_at = datetime.utcnow()
+    enrollment.consent_submitted_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(enrollment)
 

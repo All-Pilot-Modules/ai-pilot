@@ -8,7 +8,7 @@ import logging
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.config import OPENAI_API_KEY, LLM_MODEL
 from app.models.document import Document
@@ -341,7 +341,7 @@ Generate all {total_questions} questions now. Ensure questions are pedagogically
                     # AI generation metadata
                     "status": QuestionStatus.UNREVIEWED,  # Mark as unreviewed
                     "is_ai_generated": True,
-                    "generated_at": datetime.utcnow(),
+                    "generated_at": datetime.now(timezone.utc),
                     "has_text_input": False
                 }
 

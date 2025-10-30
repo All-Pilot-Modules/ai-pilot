@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, TIMESTAMP, 
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 class AIFeedback(Base):
     __tablename__ = "ai_feedback"
@@ -20,7 +20,7 @@ class AIFeedback(Base):
     feedback_data = Column(JSONB, nullable=False)  # Contains explanation, hints, strengths, weaknesses, etc.
 
     # Timestamp
-    generated_at = Column(TIMESTAMP, default=datetime.utcnow)
+    generated_at = Column(TIMESTAMP, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         Index('ix_ai_feedback_answer_id', 'answer_id'),

@@ -7,8 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { ArrowLeft, User, Calendar, Clock, Award, BookOpen, TrendingUp, CheckCircle, XCircle, HelpCircle, List, Download, BarChart3, PieChart, Bot, FileDown, FileText, FileJson, ClipboardList, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, User, Calendar, Clock, Award, BookOpen, TrendingUp, CheckCircle, XCircle, HelpCircle, List, Download, BarChart3, PieChart, Bot, FileDown, FileText, FileJson, ClipboardList, MessageSquare, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { apiClient } from "@/lib/auth";
 
@@ -1028,13 +1029,14 @@ function StudentDetailPageContent() {
                                   <div className="space-y-2">
                                     <p className="text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{questionData.question_text}</p>
                                     {questionData.image_url && (
-                                      <div className="mt-2">
-                                        <img
+                                      <div className="mt-2 relative" style={{ maxHeight: '200px', width: '100%' }}>
+                                        <Image
                                           src={questionData.image_url}
                                           alt="Question illustration"
-                                          className="max-w-full h-auto rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm"
-                                          style={{ maxHeight: '200px' }}
-                                          loading="lazy"
+                                          width={400}
+                                          height={200}
+                                          className="rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm object-contain"
+                                          style={{ maxHeight: '200px', width: 'auto' }}
                                         />
                                       </div>
                                     )}

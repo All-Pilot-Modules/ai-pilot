@@ -41,6 +41,26 @@ function StudentsPageContent() {
   const [moduleData, setModuleData] = useState(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
+  // Configurable thresholds - can be set from module config or use defaults
+  // These control how students are categorized and displayed:
+  // - passingScore: Minimum score to be considered "passing" (default: 60%)
+  // - excellentScore: Score threshold for "Excellent" label and award icon (default: 80%)
+  // - goodScore: Average score threshold for "good" class indicator (default: 70%)
+  // - progressWarning: Progress % below which shows red warning (default: 50%)
+  // - progressGood: Progress % above which shows green indicator (default: 80%)
+  // - activeDays: Days since last access to be considered "active" (default: 7)
+  //
+  // Teachers can configure these in module settings via assignment_config:
+  // Example: { passing_score: 65, excellent_score: 85, active_days: 14 }
+  const thresholds = {
+    passingScore: moduleData?.assignment_config?.passing_score || 60,
+    excellentScore: moduleData?.assignment_config?.excellent_score || 80,
+    goodScore: moduleData?.assignment_config?.good_score || 70,
+    progressWarning: moduleData?.assignment_config?.progress_warning || 50,
+    progressGood: moduleData?.assignment_config?.progress_good || 80,
+    activeDays: moduleData?.assignment_config?.active_days || 7
+  };
+
   // Define fetchModuleData first before using it
   const fetchModuleData = useCallback(async () => {
     try {
@@ -182,11 +202,12 @@ function StudentsPageContent() {
               return mostRecentAnswer.answer === mostRecentAnswer.correct_answer;
             }
 
-            // For short/essay questions: use AI score with 60% threshold
+            // For short/essay questions: use AI score with configurable threshold
             const feedback = feedbackByAnswerId[mostRecentAnswer.id];
             if (feedback?.score !== null && feedback?.score !== undefined) {
               const scorePercent = feedback.score > 1 ? feedback.score : feedback.score * 100;
-              return scorePercent >= 60; // 60% or higher counts as "correct"
+              const passingThreshold = moduleData?.assignment_config?.passing_score || 60;
+              return scorePercent >= passingThreshold;
             }
 
             // Fallback to boolean check if no score available
@@ -350,8 +371,8 @@ function StudentsPageContent() {
 
   const getProgressBadgeColor = (progress) => {
     if (progress === 0) return 'bg-gray-100 text-gray-800';
-    if (progress < 50) return 'bg-red-100 text-red-800';
-    if (progress < 80) return 'bg-yellow-100 text-yellow-800';
+    if (progress < thresholds.progressWarning) return 'bg-red-100 text-red-800';
+    if (progress < thresholds.progressGood) return 'bg-yellow-100 text-yellow-800';
     return 'bg-green-100 text-green-800';
   };
 
@@ -688,10 +709,10 @@ function StudentsPageContent() {
                       {loadingStudents ? '...' : students.filter(s => {
                         const lastAccess = new Date(s.last_access);
                         const daysSinceAccess = (Date.now() - lastAccess.getTime()) / (1000 * 60 * 60 * 24);
-                        return daysSinceAccess <= 7;
+                        return daysSinceAccess <= thresholds.activeDays;
                       }).length}
                     </p>
-                    <p className="text-xs text-green-600/70 dark:text-green-400/70 mt-1">Last 7 days</p>
+                    <p className="text-xs text-green-600/70 dark:text-green-400/70 mt-1">Last {thresholds.activeDays} days</p>
                   </div>
                 </CardContent>
               </Card>
@@ -705,13 +726,13 @@ function StudentsPageContent() {
                     </div>
                     <div className={`px-2 py-1 rounded-full ${
                       !loadingStudents && students.length > 0 &&
-                      Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) >= 70
+                      Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) >= thresholds.goodScore
                         ? 'bg-green-200/50 dark:bg-green-800/50'
                         : 'bg-purple-200/50 dark:bg-purple-800/50'
                     }`}>
                       <CheckCircle className={`w-3 h-3 ${
                         !loadingStudents && students.length > 0 &&
-                        Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) >= 70
+                        Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) >= thresholds.goodScore
                           ? 'text-green-700 dark:text-green-300'
                           : 'text-purple-700 dark:text-purple-300'
                       }`} />
@@ -893,8 +914,8 @@ function StudentsPageContent() {
                                   <div
                                     className={`h-full rounded-full transition-all duration-500 shadow-sm ${
                                       (student.progress || 0) === 0 ? 'bg-gray-400' :
-                                      (student.progress || 0) < 50 ? 'bg-gradient-to-r from-red-400 to-red-500' :
-                                      (student.progress || 0) < 80 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
+                                      (student.progress || 0) < thresholds.progressWarning ? 'bg-gradient-to-r from-red-400 to-red-500' :
+                                      (student.progress || 0) < thresholds.progressGood ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
                                       'bg-gradient-to-r from-green-400 to-green-500'
                                     }`}
                                     style={{width: `${student.progress || 0}%`}}
@@ -906,13 +927,13 @@ function StudentsPageContent() {
                               <div className="flex items-center gap-3">
                                 <div className="relative">
                                   <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg shadow-md ${
-                                    (student.avg_score || 0) >= 80 ? 'bg-gradient-to-br from-green-400 to-green-600 text-white' :
-                                    (student.avg_score || 0) >= 60 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white' :
+                                    (student.avg_score || 0) >= thresholds.excellentScore ? 'bg-gradient-to-br from-green-400 to-green-600 text-white' :
+                                    (student.avg_score || 0) >= thresholds.passingScore ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white' :
                                     'bg-gradient-to-br from-red-400 to-red-600 text-white'
                                   }`}>
                                     {student.avg_score || 0}
                                   </div>
-                                  {(student.avg_score || 0) >= 80 && (
+                                  {(student.avg_score || 0) >= thresholds.excellentScore && (
                                     <div className="absolute -top-1 -right-1">
                                       <Award className="w-5 h-5 text-yellow-500 fill-yellow-400" />
                                     </div>
@@ -920,12 +941,12 @@ function StudentsPageContent() {
                                 </div>
                                 <div className="text-xs space-y-1">
                                   <div className={`font-semibold ${
-                                    (student.avg_score || 0) >= 80 ? 'text-green-600 dark:text-green-400' :
-                                    (student.avg_score || 0) >= 60 ? 'text-yellow-600 dark:text-yellow-400' :
+                                    (student.avg_score || 0) >= thresholds.excellentScore ? 'text-green-600 dark:text-green-400' :
+                                    (student.avg_score || 0) >= thresholds.passingScore ? 'text-yellow-600 dark:text-yellow-400' :
                                     'text-red-600 dark:text-red-400'
                                   }`}>
-                                    {(student.avg_score || 0) >= 80 ? 'Excellent' :
-                                     (student.avg_score || 0) >= 60 ? 'Good' : 'Needs Improvement'}
+                                    {(student.avg_score || 0) >= thresholds.excellentScore ? 'Excellent' :
+                                     (student.avg_score || 0) >= thresholds.passingScore ? 'Good' : 'Needs Improvement'}
                                   </div>
                                   <div className="text-muted-foreground">
                                     {student.completed_questions || 0} answered

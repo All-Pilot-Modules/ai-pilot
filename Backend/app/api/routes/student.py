@@ -92,7 +92,7 @@ def join_module_with_code(
     Creates an enrollment record if student_id is provided.
     """
     from app.models.student_enrollment import StudentEnrollment
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     print(f"🔍 Searching for access code: '{access_code}' (length: {len(access_code)})")
 
@@ -133,7 +133,7 @@ def join_module_with_code(
                 student_id=student_id,
                 module_id=module.id,
                 access_code_used=access_code.strip().upper(),
-                enrolled_at=datetime.utcnow()
+                enrolled_at=datetime.now(timezone.utc)
             )
             db.add(enrollment)
             db.commit()

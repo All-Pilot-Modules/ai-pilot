@@ -6,10 +6,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Module name is required (e.g. ?module=IEP_LAURA)" });
   }
 
-  const db =await getDb(module);
+  const db = await getDb(module);
 
-  if (req.method === "GET") {
-    try {
+  try {
+    if (req.method === "GET") {
       if (id) {
         // Get single feedback by feedback ID
         const { rows } = await db.query("SELECT * FROM ai_feedback WHERE id=$1", [id]);
@@ -31,11 +31,13 @@ export default async function handler(req, res) {
       // Get all feedback entries
       const { rows } = await db.query("SELECT * FROM ai_feedback");
       return res.status(200).json(rows);
-    } catch (error) {
-      console.error("DB error:", error);
-      return res.status(500).json({ error: "Internal Server Error" });
     }
-  }
 
-  return res.status(405).json({ error: "Method Not Allowed" });
+    return res.status(405).json({ error: "Method Not Allowed" });
+  } catch (error) {
+    console.error("DB error:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  } finally {
+    await db.end();
+  }
 }

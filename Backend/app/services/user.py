@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.schemas.user import UserCreate
 from sqlalchemy.exc import IntegrityError
-from datetime import datetime
+from datetime import datetime, timezone
 
 def create_user(db: Session, user_data: UserCreate):
     # Check if Banner ID already exists
@@ -26,8 +26,8 @@ def create_user(db: Session, user_data: UserCreate):
         email=user_data.email,
         profile_image=user_data.profile_image,
         role=user_data.role or "student",
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
     )
 
     try:

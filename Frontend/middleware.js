@@ -19,7 +19,7 @@ function isTeacherRoute(pathname) {
 
 export default async function middleware(request) {
   const { pathname } = request.nextUrl;
-  
+
   // Skip middleware for static files and API routes
   if (
     pathname.startsWith('/_next') ||
@@ -30,7 +30,7 @@ export default async function middleware(request) {
     return NextResponse.next();
   }
 
-  const token = request.cookies.get('token')?.value || 
+  const token = request.cookies.get('token')?.value ||
                 request.headers.get('authorization')?.replace('Bearer ', '');
 
   // Check if route is protected
@@ -41,24 +41,55 @@ export default async function middleware(request) {
 
     try {
       const decoded = jwtDecode(token);
-      
+
       // Check if token is expired
       if (decoded.exp < Date.now() / 1000) {
+        const response = NextResponse.redirect(new URL('/sign-in', request.url));
+        response.cookies.delete('token');
+        response.cookies.delete('refresh_token');
+        return response;
+      }
+
+      // Verify token type (must be access token)
+      if (decoded.type && decoded.type !== 'access') {
         const response = NextResponse.redirect(new URL('/sign-in', request.url));
         response.cookies.delete('token');
         return response;
       }
 
-      // Get user info from token (you might want to fetch from API for role info)
-      // For now, we'll assume the role is in the token or fetch it
-      
-      // Role-based access control would need user data
-      // You might need to make an API call here to get user role
-      
+      // Role-Based Access Control (RBAC)
+      const userRole = decoded.role;
+
+      // Check admin routes
+      if (isAdminRoute(pathname)) {
+        if (userRole !== 'admin') {
+          return NextResponse.redirect(new URL('/dashboard', request.url));
+        }
+      }
+
+      // Check teacher routes
+      if (isTeacherRoute(pathname)) {
+        if (userRole !== 'teacher' && userRole !== 'admin') {
+          return NextResponse.redirect(new URL('/dashboard', request.url));
+        }
+      }
+
+      // Add user role to request headers for use in pages
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set('x-user-role', userRole || 'student');
+      requestHeaders.set('x-user-id', decoded.sub || '');
+
+      return NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      });
+
     } catch (error) {
       console.error('Token verification failed:', error);
       const response = NextResponse.redirect(new URL('/sign-in', request.url));
       response.cookies.delete('token');
+      response.cookies.delete('refresh_token');
       return response;
     }
   }

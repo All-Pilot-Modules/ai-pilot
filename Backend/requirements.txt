@@ -6,7 +6,7 @@ annotated-types==0.7.0
 anyio==4.9.0
 attrs==25.3.0
 banks==2.2.0
-bcrypt==4.2.1
+bcrypt==3.2.2
 beautifulsoup4==4.13.4
 certifi==2025.7.14
 cffi==1.17.1

@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.module import Module
 from app.models.document import Document
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 import secrets
 import slugify  # type: ignore # Requires `python-slugify`
 import os
@@ -32,7 +32,7 @@ def get_or_create_module(db: Session, teacher_id: str, module_name: str) -> Modu
             access_code=secrets.token_hex(3).upper(),
             is_active=True,
             visibility="class-only",
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         db.add(new_module)
         db.commit()
@@ -193,10 +193,21 @@ def delete_module_with_documents(db: Session, module_id: str) -> bool:
             print(f"Error deleting AI feedback: {e}")
             db.rollback()
 
-        # 3. Skip student enrollments (table doesn't exist in current schema)
+        # 3. Delete chat conversations (they reference module)
+        try:
+            from app.models.chat_conversation import ChatConversation
+            chat_conversations = db.query(ChatConversation).filter(ChatConversation.module_id == module.id).all()
+            for conversation in chat_conversations:
+                db.delete(conversation)
+            print(f"Deleted {len(chat_conversations)} chat conversations")
+        except Exception as e:
+            print(f"Error deleting chat conversations: {e}")
+            db.rollback()
+
+        # 4. Skip student enrollments (table doesn't exist in current schema)
         print("Skipped student enrollments (table doesn't exist)")
 
-        # 4. Delete questions (handle both module_id and document_id schemas)
+        # 5. Delete questions (handle both module_id and document_id schemas)
         try:
             # Try module_id first (new schema)
             try:
@@ -217,32 +228,40 @@ def delete_module_with_documents(db: Session, module_id: str) -> bool:
             print(f"Error deleting questions: {e}")
             db.rollback()
 
-        # 5. Delete document chunks and embeddings (for RAG)
+        # 6. Delete document chunks and embeddings (for RAG)
         try:
             document_ids = [doc.id for doc in documents]
             if document_ids:
                 # Delete embeddings first (they reference chunks)
                 embeddings_to_delete = db.query(DocumentEmbedding).filter(DocumentEmbedding.document_id.in_(document_ids)).all()
+                embeddings_count = len(embeddings_to_delete)
                 for embedding in embeddings_to_delete:
                     db.delete(embedding)
-                print(f"Deleted {len(embeddings_to_delete)} document embeddings")
+                # Commit immediately to avoid warnings
+                db.commit()
+                print(f"Deleted {embeddings_count} document embeddings")
 
                 # Delete chunks
                 chunks_to_delete = db.query(DocumentChunk).filter(DocumentChunk.document_id.in_(document_ids)).all()
+                chunks_count = len(chunks_to_delete)
                 for chunk in chunks_to_delete:
                     db.delete(chunk)
-                print(f"Deleted {len(chunks_to_delete)} document chunks")
+                # Commit immediately to avoid warnings
+                db.commit()
+                print(f"Deleted {chunks_count} document chunks")
             else:
                 print("No document chunks or embeddings to delete")
         except Exception as e:
             print(f"Error deleting document chunks/embeddings: {e}")
             db.rollback()
 
-        # 6. Delete documents (they reference module)
+        # 7. Delete documents (they reference module)
         try:
             # We already have documents from earlier
             for document in documents:
                 db.delete(document)
+            # Commit immediately to avoid warnings
+            db.commit()
             print(f"Deleted {len(documents)} documents")
         except Exception as e:
             print(f"Error deleting documents: {e}")
@@ -268,7 +287,7 @@ def delete_module_with_documents(db: Session, module_id: str) -> bool:
             except Exception as e:
                 print(f"Failed to delete local module folder {module_folder}: {e}")
 
-        # 7. Finally delete the module itself
+        # 8. Finally delete the module itself
         db.delete(module)
         db.commit()
 

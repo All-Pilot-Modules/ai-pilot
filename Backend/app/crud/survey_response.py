@@ -3,7 +3,7 @@ from app.models.survey_response import SurveyResponse
 from app.schemas.survey import SurveyResponseCreate
 from uuid import UUID
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 # ✅ Get survey response by student and module
@@ -47,7 +47,7 @@ def update_survey_response(
         return None
 
     survey_response.responses = response_data.responses
-    survey_response.updated_at = datetime.utcnow()
+    survey_response.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(survey_response)
     return survey_response

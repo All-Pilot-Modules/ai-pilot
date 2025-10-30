@@ -8,9 +8,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "GET") {
-    try {
-      const db = await getDb(module); // dynamically pick correct database
+    const db = await getDb(module); // dynamically pick correct database
 
+    try {
       if (q_no) {
         const { rows } = await db.query("SELECT * FROM questions WHERE question_id = $1", [q_no]);
         if (rows.length === 0) {
@@ -24,7 +24,9 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error("DB error:", err);
       return res.status(500).json({ error: "Internal Server Error" });
-    } 
+    } finally {
+      await db.end();
+    }
   } else {
     return res.status(405).json({ error: "Method Not Allowed" });
   }

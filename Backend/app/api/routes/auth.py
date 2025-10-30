@@ -4,11 +4,14 @@ from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from app.schemas.user import UserLogin, Token, UserCreate, UserOut
 from app.core.auth import (
-    verify_password, 
-    get_password_hash, 
-    create_access_token, 
+    verify_password,
+    get_password_hash,
+    create_access_token,
+    create_refresh_token,
     get_current_active_user,
-    ACCESS_TOKEN_EXPIRE_MINUTES
+    verify_token,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    REFRESH_TOKEN_EXPIRE_DAYS
 )
 from app.database import get_db
 from app.models.user import User
@@ -72,21 +75,99 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
             detail="Inactive user"
         )
     
-    # Create access token
+    # Create access token and refresh token with user role and additional claims
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.id}, expires_delta=access_token_expires
+        data={
+            "sub": user.id,
+            "role": user.role,
+            "email": user.email,
+            "username": user.username
+        },
+        expires_delta=access_token_expires
     )
-    
+
+    # Create refresh token (longer expiration)
+    refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    refresh_token = create_refresh_token(
+        data={"sub": user.id},
+        expires_delta=refresh_token_expires
+    )
+
     return {
-        "access_token": access_token, 
-        "token_type": "bearer"
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # seconds
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role
+        }
     }
 
 @router.get("/me", response_model=UserOut)
 def get_current_user_info(current_user: User = Depends(get_current_active_user)):
     """Get current authenticated user information."""
     return current_user
+
+@router.post("/refresh")
+def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
+    """Refresh access token using refresh token."""
+    try:
+        # Verify refresh token
+        payload = verify_token(refresh_token)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token"
+            )
+
+        # Check if it's actually a refresh token
+        # Note: verify_token returns TokenData which doesn't have 'type' by default
+        # We need to decode the token again to check type
+        import jwt as pyjwt
+        from app.core.auth import SECRET_KEY, ALGORITHM
+        decoded = pyjwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+
+        if decoded.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type"
+            )
+
+        # Get user from database
+        user = db.query(User).filter(User.id == payload.user_id).first()
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found or inactive"
+            )
+
+        # Create new access token
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        new_access_token = create_access_token(
+            data={
+                "sub": user.id,
+                "role": user.role,
+                "email": user.email,
+                "username": user.username
+            },
+            expires_delta=access_token_expires
+        )
+
+        return {
+            "access_token": new_access_token,
+            "token_type": "bearer",
+            "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not refresh token"
+        )
 
 @router.post("/logout")
 def logout():

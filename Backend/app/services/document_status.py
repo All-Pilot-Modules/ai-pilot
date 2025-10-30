@@ -3,7 +3,7 @@ Document status management utilities
 Handles updating and tracking document processing status
 """
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from app.models.document import Document, ProcessingStatus
 
@@ -37,7 +37,7 @@ def update_document_status(
     if metadata:
         current_metadata = doc.processing_metadata or {}
         current_metadata.update(metadata)
-        current_metadata[f"{status}_at"] = datetime.utcnow().isoformat()
+        current_metadata[f"{status}_at"] = datetime.now(timezone.utc).isoformat()
         doc.processing_metadata = current_metadata
 
     db.commit()
@@ -67,7 +67,7 @@ def set_document_error(
     metadata = {
         "error": error_message,
         "error_details": error_details or {},
-        "failed_at": datetime.utcnow().isoformat()
+        "failed_at": datetime.now(timezone.utc).isoformat()
     }
 
     return update_document_status(

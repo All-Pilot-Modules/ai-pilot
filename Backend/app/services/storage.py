@@ -202,9 +202,14 @@ class SupabaseStorageService:
         try:
             response = self.client.storage.from_(self.bucket_name).remove([file_path])
 
-            if response.error:
+            # Supabase remove() returns a list of deleted files or an error object
+            # Check if response is an error by checking its type and content
+            if isinstance(response, dict) and 'error' in response:
+                raise Exception(f"Delete failed: {response['error']}")
+            elif hasattr(response, 'error') and response.error:
                 raise Exception(f"Delete failed: {response.error}")
 
+            # If response is a list, deletion was successful
             return True
 
         except Exception as e:

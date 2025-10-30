@@ -3,7 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.module import Module
 from app.schemas.module import ModuleCreate
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 import secrets
 import slugify  # type: ignore
 from typing import List
@@ -45,7 +45,7 @@ def create_module(db: Session, payload: ModuleCreate) -> Module:
         access_code=secrets.token_hex(3).upper(),
         instructions=payload.instructions,
         assignment_config=payload.assignment_config,
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     db.add(new_module)
     db.commit()
@@ -65,7 +65,7 @@ def get_or_create_module(db: Session, teacher_id: str, module_name: str) -> Modu
         slug=slugify.slugify(module_name),
         access_code=secrets.token_hex(3).upper(),
         is_active=True,
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     db.add(new_module)
     try:

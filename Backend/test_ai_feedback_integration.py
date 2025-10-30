@@ -17,7 +17,7 @@ from app.models.question import Question
 from app.models.module import Module
 from app.schemas.student_answer import StudentAnswerCreate
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def test_feedback_service_import():
@@ -183,7 +183,7 @@ def test_complete_feedback_flow():
 
         # Create answer in database
         from app.models.student_answer import StudentAnswer
-        test_answer = StudentAnswer(**test_answer_data, submitted_at=datetime.utcnow())
+        test_answer = StudentAnswer(**test_answer_data, submitted_at=datetime.now(timezone.utc))
         db.add(test_answer)
         db.commit()
         db.refresh(test_answer)

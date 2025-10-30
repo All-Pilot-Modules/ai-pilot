@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from app.models.document import Document
 from app.schemas.document import DocumentCreate, DocumentUpdate
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 from typing import List, Optional
 import os
@@ -19,7 +19,7 @@ def create_document(db: Session, doc_data: DocumentCreate) -> Document:
         storage_path=doc_data.storage_path,
         index_path=doc_data.index_path,
         slide_count=doc_data.slide_count,
-        uploaded_at=datetime.utcnow()
+        uploaded_at=datetime.now(timezone.utc)
     )
     db.add(new_doc)
     db.commit()

@@ -58,8 +58,8 @@ def update_conversation_timestamp(db: Session, conversation_id: UUID):
     """Update the conversation's updated_at timestamp"""
     conversation = get_conversation(db, conversation_id)
     if conversation:
-        from datetime import datetime
-        conversation.updated_at = datetime.utcnow()
+        from datetime import datetime, timezone
+        conversation.updated_at = datetime.now(timezone.utc)
         db.commit()
 
 
