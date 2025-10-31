@@ -147,6 +147,16 @@ function StudentModuleContent() {
     setConsentChecked(true);
   };
 
+  // Mask student ID to show only last 2 digits
+  const maskStudentId = (studentId) => {
+    if (!studentId) return '';
+    const idStr = String(studentId);
+    if (idStr.length <= 2) return idStr;
+    const lastTwo = idStr.slice(-2);
+    const masked = '*'.repeat(idStr.length - 2);
+    return masked + lastTwo;
+  };
+
   // Effect to update feedbackData and answeredQuestions when selectedAttempt changes
   useEffect(() => {
     const currentFeedback = feedbackByAttempt[selectedAttempt] || {};
@@ -556,6 +566,11 @@ function StudentModuleContent() {
             </div>
 
             <div className="flex items-center gap-2 flex-shrink-0">
+              {moduleAccess?.studentId && (
+                <Badge className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold font-mono text-sm px-4 py-2 shadow-md border-0 whitespace-nowrap">
+                  Student ID: {maskStudentId(moduleAccess.studentId)}
+                </Badge>
+              )}
               <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300 whitespace-nowrap">
                 Active Student
               </Badge>

@@ -728,6 +728,16 @@ export default function StudentTestPage() {
     return Object.keys(answers).filter(qId => answers[qId] && answers[qId].trim()).length;
   };
 
+  // Mask student ID to show only last 2 digits
+  const maskStudentId = (studentId) => {
+    if (!studentId) return '';
+    const idStr = String(studentId);
+    if (idStr.length <= 2) return idStr;
+    const lastTwo = idStr.slice(-2);
+    const masked = '*'.repeat(idStr.length - 2);
+    return masked + lastTwo;
+  };
+
   if (loading) {
     return <FullPageLoader text="Loading test questions..." />;
   }
@@ -783,6 +793,11 @@ export default function StudentTestPage() {
               <Badge variant="outline">
                 {getAnsweredCount()} / {questions.length} answered
               </Badge>
+              {moduleAccess?.studentId && (
+                <Badge className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold font-mono text-sm px-4 py-2 shadow-md border-0">
+                  Student ID: {maskStudentId(moduleAccess.studentId)}
+                </Badge>
+              )}
               {/* Prefill Button - Show only if previous attempts exist */}
               {previousAttempts.length > 0 && (
                 <Button
