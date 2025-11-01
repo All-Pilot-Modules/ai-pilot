@@ -379,6 +379,144 @@ class ModuleExportService:
         }
         return status_map.get(waiver_status, 'Unknown')
 
+    def export_feedback_specific(self, db: Session, module_id: UUID) -> BytesIO:
+        """
+        Export feedback-specific format showing all attempts and feedback for each student/question
+
+        Format: One row per student per question with columns for each attempt
+        Columns: Student ID | Question | Correct Answer | Attempt 1 Answer | Attempt 1 Feedback |
+                 Attempt 2 Answer | Attempt 2 Feedback | ... (up to 5 attempts)
+
+        Args:
+            db: Database session
+            module_id: UUID of the module to export
+
+        Returns:
+            BytesIO object containing the Excel file
+        """
+        # Fetch module
+        module = db.query(Module).filter(Module.id == module_id).first()
+        if not module:
+            raise ValueError(f"Module with ID {module_id} not found")
+
+        # Get all questions for this module
+        questions = db.query(Question).filter(Question.module_id == module_id).order_by(Question.generated_at).all()
+
+        # Get all answers for this module
+        answers = db.query(StudentAnswer).filter(StudentAnswer.module_id == module_id).all()
+
+        # Get all feedback
+        feedback_map = {}
+        feedbacks = db.query(AIFeedback).join(
+            StudentAnswer, AIFeedback.answer_id == StudentAnswer.id
+        ).filter(StudentAnswer.module_id == module_id).all()
+
+        for fb in feedbacks:
+            feedback_map[fb.answer_id] = fb
+
+        # Organize answers by student and question
+        student_question_answers = {}
+        for answer in answers:
+            key = (answer.student_id, str(answer.question_id))
+            if key not in student_question_answers:
+                student_question_answers[key] = {}
+            student_question_answers[key][answer.attempt] = answer
+
+        # Get unique students
+        students = sorted(set(answer.student_id for answer in answers))
+
+        # Build export data
+        export_data = []
+
+        for student_id in students:
+            for question in questions:
+                row = {
+                    'Student ID': student_id,
+                    'Question Text': question.text[:200] + '...' if len(question.text) > 200 else question.text,
+                    'Question Type': question.type,
+                }
+
+                # Add correct answer
+                if question.type == 'mcq':
+                    row['Correct Answer'] = question.correct_answer
+                elif question.correct_answer:
+                    correct_ans_text = question.correct_answer[:200] + '...' if len(str(question.correct_answer)) > 200 else question.correct_answer
+                    row['Correct Answer'] = correct_ans_text
+                else:
+                    row['Correct Answer'] = 'Not specified'
+
+                # Add data for each attempt (up to 5)
+                key = (student_id, str(question.id))
+                attempts_data = student_question_answers.get(key, {})
+
+                for attempt_num in range(1, 6):  # Attempts 1-5
+                    attempt_answer = attempts_data.get(attempt_num)
+
+                    if attempt_answer:
+                        # Add answer
+                        answer_text = str(attempt_answer.answer)
+                        if len(answer_text) > 200:
+                            answer_text = answer_text[:200] + '...'
+                        row[f'Attempt {attempt_num} Answer'] = answer_text
+
+                        # Add feedback if exists
+                        fb = feedback_map.get(attempt_answer.id)
+                        if fb:
+                            feedback_text = ''
+                            if fb.feedback_data:
+                                # Extract key feedback info
+                                if 'explanation' in fb.feedback_data:
+                                    feedback_text = fb.feedback_data['explanation']
+                                elif 'feedback' in fb.feedback_data:
+                                    feedback_text = fb.feedback_data['feedback']
+                                else:
+                                    feedback_text = str(fb.feedback_data)
+
+                                if len(feedback_text) > 300:
+                                    feedback_text = feedback_text[:300] + '...'
+
+                            row[f'Attempt {attempt_num} Feedback'] = feedback_text
+                            row[f'Attempt {attempt_num} Score'] = fb.score if fb.score is not None else 'N/A'
+                            row[f'Attempt {attempt_num} Correct'] = 'Yes' if fb.is_correct else 'No' if fb.is_correct is not None else 'N/A'
+                        else:
+                            row[f'Attempt {attempt_num} Feedback'] = 'No feedback'
+                            row[f'Attempt {attempt_num} Score'] = 'N/A'
+                            row[f'Attempt {attempt_num} Correct'] = 'N/A'
+                    else:
+                        row[f'Attempt {attempt_num} Answer'] = 'Not attempted'
+                        row[f'Attempt {attempt_num} Feedback'] = ''
+                        row[f'Attempt {attempt_num} Score'] = ''
+                        row[f'Attempt {attempt_num} Correct'] = ''
+
+                export_data.append(row)
+
+        # Create Excel file
+        output = BytesIO()
+
+        if export_data:
+            df = pd.DataFrame(export_data)
+
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df.to_excel(writer, sheet_name='Feedback Report', index=False)
+
+                # Auto-fit columns
+                worksheet = writer.sheets['Feedback Report']
+                for idx, col in enumerate(df.columns):
+                    max_length = max(
+                        df[col].astype(str).str.len().max(),
+                        len(str(col))
+                    )
+                    adjusted_width = min(max_length + 2, 80)
+                    worksheet.set_column(idx, idx, adjusted_width)
+        else:
+            # Create empty file if no data
+            df = pd.DataFrame([{'Message': 'No student data found for this module'}])
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df.to_excel(writer, sheet_name='Feedback Report', index=False)
+
+        output.seek(0)
+        return output
+
 
 # Singleton instance
 module_export_service = ModuleExportService()

@@ -78,6 +78,69 @@ def export_module_data(
         )
 
 
+@router.get("/modules/{module_id}/export/feedback")
+def export_module_feedback(
+    module_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Export feedback-specific format with all attempts and feedback
+
+    **Format:**
+    One row per student per question with columns:
+    - Student ID
+    - Question Text
+    - Question Type
+    - Correct Answer
+    - Attempt 1 Answer, Feedback, Score, Correct
+    - Attempt 2 Answer, Feedback, Score, Correct
+    - ... (up to Attempt 5)
+
+    **Returns:**
+    Excel file (.xlsx) with feedback report
+
+    **Example:**
+    ```
+    GET /api/modules/123e4567-e89b-12d3-a456-426614174000/export/feedback
+    ```
+    """
+    try:
+        # Verify module exists
+        module = get_module_by_id(db, module_id)
+        if not module:
+            raise HTTPException(status_code=404, detail=f"Module with ID {module_id} not found")
+
+        # Generate Excel file
+        excel_file = module_export_service.export_feedback_specific(db, module_id)
+
+        # Create filename with module name and timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        # Sanitize module name for filename
+        safe_module_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in module.name)
+        filename = f"{safe_module_name}_feedback_export_{timestamp}.xlsx"
+
+        # Return as downloadable file
+        return StreamingResponse(
+            excel_file,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{filename}\"",
+                "Cache-Control": "no-cache"
+            }
+        )
+
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"❌ Error exporting feedback data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to export feedback data: {str(e)}"
+        )
+
+
 @router.get("/modules/{module_id}/export/summary")
 def get_export_summary(
     module_id: UUID,

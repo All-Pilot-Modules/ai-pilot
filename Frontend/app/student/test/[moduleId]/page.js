@@ -400,13 +400,27 @@ export default function StudentTestPage() {
           setSaveStatus('saved');
           setTimeout(() => setSaveStatus(null), 1000);
         } catch (error) {
-          const errorMessage = error.response?.data?.detail || error.message || 'Failed to save answer';
-          console.error('❌ MCQ Auto-save failed:', errorMessage);
+          // Improved error handling for MCQ auto-save
+          let errorMessage = 'Auto-save failed';
+
+          if (error.message === 'Failed to fetch' || error.message.includes('fetch')) {
+            errorMessage = 'Connection issue - answer not saved yet';
+            console.warn('⚠️ MCQ Auto-save failed (network issue):', error.message);
+          } else if (error.response?.status === 500) {
+            errorMessage = 'Server error - answer not saved';
+            console.error('❌ MCQ Auto-save failed (server error):', error.response?.data);
+          } else {
+            errorMessage = error.response?.data?.detail || error.message || 'Failed to save answer';
+            console.error('❌ MCQ Auto-save failed:', errorMessage);
+          }
+
           setSaveStatus('error');
-          setError(errorMessage);
+          // Don't show error in the main error area for auto-save failures
+          // Just show in the save status indicator
+          console.log(`MCQ Auto-save error for question ${questionId}:`, errorMessage);
+
           setTimeout(() => {
             setSaveStatus(null);
-            setError("");
           }, 3000);
         }
       };
@@ -442,13 +456,27 @@ export default function StudentTestPage() {
           setSaveStatus('saved');
           setTimeout(() => setSaveStatus(null), 1000);
         } catch (error) {
-          const errorMessage = error.response?.data?.detail || error.message || 'Failed to save answer';
-          console.error('Text Auto-save failed:', errorMessage);
+          // Improved error handling for auto-save
+          let errorMessage = 'Auto-save failed';
+
+          if (error.message === 'Failed to fetch' || error.message.includes('fetch')) {
+            errorMessage = 'Connection issue - answer not saved yet';
+            console.warn('⚠️ Auto-save failed (network issue):', error.message);
+          } else if (error.response?.status === 500) {
+            errorMessage = 'Server error - answer not saved';
+            console.error('❌ Auto-save failed (server error):', error.response?.data);
+          } else {
+            errorMessage = error.response?.data?.detail || error.message || 'Failed to save answer';
+            console.error('❌ Text Auto-save failed:', errorMessage);
+          }
+
           setSaveStatus('error');
-          setError(errorMessage);
+          // Don't show error in the main error area for auto-save failures
+          // Just show in the save status indicator
+          console.log(`Auto-save error for question ${questionId}:`, errorMessage);
+
           setTimeout(() => {
             setSaveStatus(null);
-            setError("");
           }, 3000);
         }
       }, 1200); // Slightly faster debounce
@@ -535,6 +563,52 @@ export default function StudentTestPage() {
       const currentAttempt = attempts[questions[0]?.id] || 1;
       console.log(`🚀 Submitting test - Attempt ${currentAttempt}`);
       console.log(`📝 Total questions: ${questions.length}, Answered: ${Object.keys(answers).length}`);
+
+      // CRITICAL FIX: Force-save all answers before submitting
+      // This prevents "No answers found" error when typing quickly
+      console.log('💾 Force-saving all answers before submission...');
+
+      const savePromises = [];
+      for (const question of questions) {
+        const currentAnswer = answersRef.current[question.id];
+
+        if (currentAnswer && currentAnswer.trim()) {
+          // Format answer based on question type
+          let formattedAnswer;
+          if (question.type === 'mcq') {
+            formattedAnswer = {
+              selected_option_id: currentAnswer.trim()
+            };
+          } else {
+            formattedAnswer = {
+              text_response: currentAnswer.trim()
+            };
+          }
+
+          const savePromise = apiClient.post(`/api/student/save-answer`, {
+            student_id: moduleAccess.studentId,
+            question_id: question.id,
+            module_id: moduleId,
+            document_id: question.document_id || null,
+            answer: formattedAnswer,
+            attempt: currentAttempt
+          }).catch(err => {
+            console.error(`Failed to save answer for question ${question.id}:`, err);
+            // Continue even if one save fails
+          });
+
+          savePromises.push(savePromise);
+        }
+      }
+
+      // Wait for all saves to complete
+      if (savePromises.length > 0) {
+        await Promise.all(savePromises);
+        console.log(`✅ Saved ${savePromises.length} answers before submission`);
+      }
+
+      // Small delay to ensure database commits are complete
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Use the new batch submission endpoint
       const response = await apiClient.post(

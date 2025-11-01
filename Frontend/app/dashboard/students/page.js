@@ -427,7 +427,7 @@ function StudentsPageContent() {
   };
 
   // Export comprehensive module data as Excel (using backend endpoint)
-  const exportStudentsCSV = async () => {
+  const exportStudentsComprehensive = async () => {
     if (!moduleData) return;
 
     try {
@@ -464,10 +464,42 @@ function StudentsPageContent() {
     }
   };
 
-  // Export comprehensive module data as Excel (same as CSV - backend returns Excel)
-  const exportStudentsJSON = async () => {
-    // Both options now download Excel from backend
-    await exportStudentsCSV();
+  // Export feedback-specific format
+  const exportFeedbackSpecific = async () => {
+    if (!moduleData) return;
+
+    try {
+      // Call backend feedback export endpoint
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/modules/${moduleData.id}/export/feedback`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Export failed: ${response.statusText}`);
+      }
+
+      // Get the blob from response
+      const blob = await response.blob();
+
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${moduleData.name}_feedback_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting feedback data:', error);
+      alert('Failed to export feedback data. Please try again.');
+    }
   };
 
 
@@ -612,12 +644,12 @@ function StudentsPageContent() {
                           onClick={() => setShowExportMenu(false)}
                         />
                         {/* Dropdown menu - appears ABOVE the button */}
-                        <div className="absolute right-0 bottom-full mb-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+                        <div className="absolute right-0 bottom-full mb-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
                           <div className="p-2">
                             <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Export Format</div>
                             <button
                               onClick={() => {
-                                exportStudentsCSV();
+                                exportStudentsComprehensive();
                                 setShowExportMenu(false);
                               }}
                               className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex items-center gap-3 transition-colors"
@@ -626,23 +658,23 @@ function StudentsPageContent() {
                                 <FileText className="w-4 h-4 text-green-600 dark:text-green-400" />
                               </div>
                               <div>
-                                <div className="font-medium text-gray-900 dark:text-gray-100">Excel Export</div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">Complete module data (8 sheets)</div>
+                                <div className="font-medium text-gray-900 dark:text-gray-100">Comprehensive Export</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">Complete data with 8 sheets</div>
                               </div>
                             </button>
                             <button
                               onClick={() => {
-                                exportStudentsJSON();
+                                exportFeedbackSpecific();
                                 setShowExportMenu(false);
                               }}
                               className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex items-center gap-3 transition-colors"
                             >
-                              <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                              <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                                <BarChart3 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
                               </div>
                               <div>
-                                <div className="font-medium text-gray-900 dark:text-gray-100">Excel Export</div>
-                                <div className="text-xs text-gray-500 dark:text-gray-400">Complete module data (8 sheets)</div>
+                                <div className="font-medium text-gray-900 dark:text-gray-100">Feedback Report</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">All attempts & feedback per student</div>
                               </div>
                             </button>
                           </div>
