@@ -953,7 +953,7 @@ function StudentModuleContent() {
                         <div className="text-4xl font-bold text-blue-600">
                           {Math.round((Object.values(feedbackData).filter(f => f.is_correct).length / Object.keys(feedbackData).length) * 100)}%
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Score on Attempt {selectedAttempt}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Progress on Attempt {selectedAttempt}</p>
                       </div>
                     </div>
 
@@ -1017,7 +1017,7 @@ function StudentModuleContent() {
                       <div className="mt-6 pt-6 border-t border-blue-300 dark:border-blue-700">
                         <div className="text-center">
                           <div className="text-6xl mb-2">🎉</div>
-                          <p className="text-xl font-bold text-gray-900 dark:text-white">Perfect Score!</p>
+                          <p className="text-xl font-bold text-gray-900 dark:text-white">Perfect!</p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
                             Great job! You got all questions correct on attempt {selectedAttempt}.
                           </p>
@@ -1126,7 +1126,7 @@ function StudentModuleContent() {
                                           ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
                                           : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300"
                                       }>
-                                        Score: {Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100)}%
+                                        Progress: {Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100)}%
                                       </Badge>
                                     </>
                                   ) : isAnswered ? (
@@ -1487,7 +1487,7 @@ function StudentModuleContent() {
                         </div>
                         <div className="mt-4 pt-4 border-t">
                           <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">Overall Score:</span>
+                            <span className="text-sm font-medium">Overall Progress:</span>
                             <span className="text-2xl font-bold text-blue-600">
                               {Math.round((Object.values(feedbackData).filter(f => f.is_correct).length / Object.keys(feedbackData).length) * 100)}%
                             </span>

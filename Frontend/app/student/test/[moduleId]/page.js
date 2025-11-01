@@ -10,6 +10,16 @@ import { Textarea } from "@/components/ui/textarea";
 // RadioGroup not available - using custom implementation
 import { Label } from "@/components/ui/label";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   ArrowLeft,
   ArrowRight,
   ArrowDown,
@@ -63,6 +73,10 @@ export default function StudentTestPage() {
   const [selectedPrefillAttempt, setSelectedPrefillAttempt] = useState(null); // Which attempt to prefill from
   const [showPrefillPanel, setShowPrefillPanel] = useState(false); // Toggle prefill UI
   const [selectedQuestionsForPrefill, setSelectedQuestionsForPrefill] = useState(new Set()); // Individual question selection
+
+  // Confirmation dialog for unanswered questions
+  const [showUnansweredDialog, setShowUnansweredDialog] = useState(false);
+  const [unansweredQuestions, setUnansweredQuestions] = useState([]);
 
   // Keep answersRef in sync with answers state
   useEffect(() => {
@@ -299,6 +313,12 @@ export default function StudentTestPage() {
       [questionId]: answer
     }));
 
+    // Update ref synchronously to prevent race conditions
+    answersRef.current = {
+      ...answersRef.current,
+      [questionId]: answer
+    };
+
     // Remove prefill indicator when user manually edits the answer
     if (prefilledQuestions.has(questionId)) {
       setPrefilledQuestions(prev => {
@@ -350,10 +370,9 @@ export default function StudentTestPage() {
         try {
           setSaveStatus('saving');
 
-          // RACE CONDITION FIX: Check if answer is still valid before saving
-          // Use ref to get the LATEST answer value, not the captured closure value
-          const currentAnswer = answersRef.current[questionId];
-          if (!currentAnswer || !currentAnswer.trim()) {
+          // For immediate MCQ save, use the answer parameter directly
+          // (ref won't be updated yet since useEffect runs after render)
+          if (!answer || !answer.trim()) {
             console.log(`⏭️ Skipping MCQ save - answer was cleared`);
             setSaveStatus(null);
             return;
@@ -361,9 +380,11 @@ export default function StudentTestPage() {
 
           // Simplified format: just store the option ID
           const formattedAnswer = {
-            selected_option_id: currentAnswer.trim()
+            selected_option_id: answer.trim()
           };
           const currentAttempt = attempts[questionId] || 1;
+
+          console.log(`💾 Auto-saving MCQ answer for question ${questionId}: ${answer.trim()}`);
 
           // Use new save-answer endpoint for draft saves (no feedback generation)
           await apiClient.post(`/api/student/save-answer`, {
@@ -375,11 +396,12 @@ export default function StudentTestPage() {
             attempt: currentAttempt
           });
 
+          console.log(`✅ MCQ answer saved successfully`);
           setSaveStatus('saved');
           setTimeout(() => setSaveStatus(null), 1000);
         } catch (error) {
           const errorMessage = error.response?.data?.detail || error.message || 'Failed to save answer';
-          console.error('MCQ Auto-save failed:', errorMessage);
+          console.error('❌ MCQ Auto-save failed:', errorMessage);
           setSaveStatus('error');
           setError(errorMessage);
           setTimeout(() => {
@@ -476,12 +498,36 @@ export default function StudentTestPage() {
     }
   };
 
+  const checkUnansweredQuestions = () => {
+    const unanswered = questions.filter(q => {
+      const answer = answers[q.id];
+      return !answer || !answer.trim();
+    });
+
+    if (unanswered.length > 0) {
+      setUnansweredQuestions(unanswered);
+      setShowUnansweredDialog(true);
+      return true;
+    }
+    return false;
+  };
+
   const handleSubmitTest = async () => {
     if (Object.keys(answers).length === 0) {
       setError("Please answer at least one question before submitting.");
       return;
     }
 
+    // Check for unanswered questions
+    if (checkUnansweredQuestions()) {
+      return; // Show dialog, don't submit yet
+    }
+
+    // If all answered or user confirmed, proceed with submission
+    await performSubmit();
+  };
+
+  const performSubmit = async () => {
     setSubmitting(true);
     setError("");
 
@@ -502,12 +548,24 @@ export default function StudentTestPage() {
         console.log(`💡 Feedback generated for ${result.feedback_generated || 0} questions`);
         console.log(`📊 Submitted ${result.questions_submitted} questions`);
 
-        setSuccess(`Attempt ${currentAttempt} submitted successfully! Redirecting to feedback...`);
+        // Check if this was the last attempt
+        const isLastAttempt = result.can_retry === false;
 
-        // Redirect to feedback tab after submission
-        setTimeout(() => {
-          router.push(`/student/module/${moduleId}?tab=feedback`);
-        }, 2000);
+        if (isLastAttempt) {
+          setSuccess(`Attempt ${currentAttempt} submitted successfully! Redirecting to survey...`);
+
+          // Redirect to survey tab for final attempt
+          setTimeout(() => {
+            router.push(`/student/module/${moduleId}?tab=survey`);
+          }, 2000);
+        } else {
+          setSuccess(`Attempt ${currentAttempt} submitted successfully! Redirecting to feedback...`);
+
+          // Redirect to feedback tab for non-final attempts
+          setTimeout(() => {
+            router.push(`/student/module/${moduleId}?tab=feedback`);
+          }, 2000);
+        }
       } else {
         throw new Error(result.message || "Submission failed");
       }
@@ -1110,6 +1168,59 @@ export default function StudentTestPage() {
           </div>
         </div>
       </div>
+
+      {/* Unanswered Questions Confirmation Dialog */}
+      <AlertDialog open={showUnansweredDialog} onOpenChange={setShowUnansweredDialog}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-xl">
+              <AlertCircle className="w-6 h-6 text-orange-500" />
+              Unanswered Questions
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-base">
+              You have <span className="font-bold text-orange-600">{unansweredQuestions.length} unanswered question{unansweredQuestions.length !== 1 ? 's' : ''}</span> out of {questions.length} total questions.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="my-4 max-h-64 overflow-y-auto">
+            <p className="text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">
+              Unanswered questions:
+            </p>
+            <div className="space-y-2">
+              {unansweredQuestions.map((q, index) => (
+                <div
+                  key={q.id}
+                  className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg"
+                >
+                  <div className="flex items-start gap-2">
+                    <Badge variant="outline" className="bg-white dark:bg-gray-900 shrink-0">
+                      Q{questions.findIndex(qu => qu.id === q.id) + 1}
+                    </Badge>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
+                      {q.text}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowUnansweredDialog(false)}>
+              Go Back to Answer
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowUnansweredDialog(false);
+                performSubmit();
+              }}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              Submit Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

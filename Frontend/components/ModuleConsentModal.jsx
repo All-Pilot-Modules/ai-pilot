@@ -117,14 +117,9 @@ export default function ModuleConsentModal({
                     {selectedOption === 1 && <CheckCircle2 className="w-4 h-4 text-white" />}
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h4 className="font-semibold">I agree to participate in research</h4>
-                      <Badge variant="outline" className="bg-green-100 text-green-700 dark:bg-green-900/30 border-green-200">
-                        Recommended
-                      </Badge>
-                    </div>
+                    <h4 className="font-semibold text-lg mb-2">Yes</h4>
                     <p className="text-sm text-muted-foreground">
-                      I consent to have my anonymized data used for educational research purposes.
+                      I agree to participate in this research project. I am 18 years of age or older.
                     </p>
                   </div>
                 </div>
@@ -148,9 +143,9 @@ export default function ModuleConsentModal({
                     {selectedOption === 2 && <XCircle className="w-4 h-4 text-white" />}
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-semibold mb-2">I do not agree to participate in research</h4>
+                    <h4 className="font-semibold text-lg mb-2">No</h4>
                     <p className="text-sm text-muted-foreground">
-                      I do not consent to have my data used for research. I can still use the platform normally.
+                      I do not agree to participate in this research project.
                     </p>
                   </div>
                 </div>
@@ -174,9 +169,9 @@ export default function ModuleConsentModal({
                     {selectedOption === 3 && <AlertCircle className="w-4 h-4 text-white" />}
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-semibold mb-2">I am not eligible for this research</h4>
+                    <h4 className="font-semibold text-lg mb-2">No</h4>
                     <p className="text-sm text-muted-foreground">
-                      I do not meet the eligibility criteria for this research study.
+                      I am not eligible to participate as I am under the age of 18.
                     </p>
                   </div>
                 </div>

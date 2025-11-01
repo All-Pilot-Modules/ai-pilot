@@ -292,7 +292,7 @@ function StudentAssignmentContent() {
               <CardTitle>Your Answer</CardTitle>
               {isCompleted && progress?.score !== undefined && (
                 <div className="flex items-center gap-2">
-                  <span className="text-sm">Score:</span>
+                  <span className="text-sm">Progress:</span>
                   <Badge variant={progress.score >= 70 ? 'default' : 'destructive'}>
                     {progress.score}%
                   </Badge>
