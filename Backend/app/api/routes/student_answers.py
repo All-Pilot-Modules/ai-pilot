@@ -197,7 +197,7 @@ def delete_student_answer_route(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete student answer: {str(e)}")
 
-# Delete all answers for a student in a module (delete student assignment)
+# Delete all data for a student in a module (delete student from module)
 @router.delete("/modules/{module_id}/students/{student_id}")
 def delete_student_assignment_route(
     module_id: UUID,
@@ -205,15 +205,20 @@ def delete_student_assignment_route(
     db: Session = Depends(get_db)
 ):
     """
-    Delete all answers for a student in a specific module
+    Delete all data for a student in a specific module including:
+    - Student answers and AI feedback
+    - Student enrollment
+    - Survey responses
+    - Test submissions
+    - Chat conversations
     """
     try:
         deleted_count = delete_student_assignment(db, student_id, module_id)
         if deleted_count == 0:
-            raise HTTPException(status_code=404, detail="No answers found for this student in this module")
-        return {"detail": f"Successfully deleted {deleted_count} answers for student {student_id}"}
+            raise HTTPException(status_code=404, detail="No data found for this student in this module")
+        return {"detail": f"Successfully deleted all data for student {student_id} from module ({deleted_count} records removed)"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to delete student assignment: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete student data: {str(e)}")
 
 # Get student answers for a specific document
 @router.get("/documents/{document_id}")

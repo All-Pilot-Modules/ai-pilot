@@ -9,6 +9,16 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Plus, Search, Users, AlertCircle, X, Calendar, Clock, Award, BookOpen, TrendingUp, User, Edit, Trash2, MoreHorizontal, UserPlus, Save, CheckCircle, XCircle, HelpCircle, List, ExternalLink, Filter, SortAsc, SortDesc, Download, FileText, FileJson, GraduationCap, Target, BarChart3, Activity, Zap } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
@@ -41,6 +51,9 @@ function StudentsPageContent() {
   const [moduleData, setModuleData] = useState(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportButtonRef = useRef(null);
+  const [deletingStudent, setDeletingStudent] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Configurable thresholds - can be set from module config or use defaults
   // These control how students are categorized and displayed:
@@ -361,6 +374,35 @@ function StudentsPageContent() {
   const handleStudentClick = async (student) => {
     // Navigate to dedicated student detail page
     router.push(`/dashboard/students/${student.student_id}?module=${encodeURIComponent(moduleName)}`);
+  };
+
+  const handleDeleteStudent = async () => {
+    if (!deletingStudent || !moduleData) return;
+
+    setDeleteLoading(true);
+    setError('');
+
+    try {
+      await apiClient.delete(`/api/student-answers/modules/${moduleData.id}/students/${deletingStudent.student_id}`);
+
+      // Remove student from local state
+      setStudents(students.filter(s => s.student_id !== deletingStudent.student_id));
+
+      // Close dialog
+      setShowDeleteDialog(false);
+      setDeletingStudent(null);
+    } catch (error) {
+      console.error('Failed to delete student:', error);
+      setError(`Failed to delete student: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  const confirmDeleteStudent = (student, e) => {
+    e.stopPropagation();
+    setDeletingStudent(student);
+    setShowDeleteDialog(true);
   };
 
   const handleSort = (field) => {
@@ -956,18 +998,29 @@ function StudentsPageContent() {
                               </div>
                             </td>
                             <td className="p-4">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="gap-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleStudentClick(student);
-                                }}
-                              >
-                                View Details
-                                <ExternalLink className="w-3 h-3" />
-                              </Button>
+                              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="gap-2"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleStudentClick(student);
+                                  }}
+                                >
+                                  View Details
+                                  <ExternalLink className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                                  onClick={(e) => confirmDeleteStudent(student, e)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  Delete
+                                </Button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -1011,7 +1064,57 @@ function StudentsPageContent() {
         </div>
       </SidebarInset>
 
-
+      {/* Delete Student Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="w-5 h-5" />
+              Delete Student Data
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete all data for student {deletingStudent?.student_id} from this module?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+              <p className="text-sm text-red-800 dark:text-red-200 font-semibold mb-2">
+                This will permanently delete:
+              </p>
+              <ul className="text-sm text-red-700 dark:text-red-300 space-y-1 list-disc list-inside">
+                <li>All student answers and AI feedback</li>
+                <li>Student enrollment and consent status</li>
+                <li>Survey responses</li>
+                <li>Test submissions</li>
+                <li>Chat conversations</li>
+              </ul>
+            </div>
+            <p className="text-sm font-semibold text-red-600 dark:text-red-400">
+              This action cannot be undone.
+            </p>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteStudent}
+              disabled={deleteLoading}
+              className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+            >
+              {deleteLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Student Data
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarProvider>
   );
 }

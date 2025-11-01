@@ -151,17 +151,70 @@ def get_student_answers_by_module(db: Session, module_id: UUID) -> List[dict]:
 
 # Delete all answers for a student in a specific module (teacher function)
 def delete_student_assignment(db: Session, student_id: str, module_id: UUID) -> int:
-    # Get all answers for this student in this module (direct relationship)
+    """
+    Delete all data for a student in a specific module including:
+    - Student answers (and AI feedback will cascade delete)
+    - Student enrollment
+    - Survey responses
+    - Test submissions
+    - Chat conversations
+    """
+    from app.models.student_enrollment import StudentEnrollment
+    from app.models.survey_response import SurveyResponse
+    from app.models.test_submission import TestSubmission
+    from app.models.chat_conversation import ChatConversation
+
+    total_deleted = 0
+
+    # Delete student answers (AI feedback will cascade delete automatically)
     answers = db.query(StudentAnswer).filter(
         StudentAnswer.student_id == student_id,
         StudentAnswer.module_id == module_id
     ).all()
 
-    # Delete all answers
-    count = 0
     for answer in answers:
         db.delete(answer)
-        count += 1
+        total_deleted += 1
+
+    # Delete student enrollment
+    enrollments = db.query(StudentEnrollment).filter(
+        StudentEnrollment.student_id == student_id,
+        StudentEnrollment.module_id == module_id
+    ).all()
+
+    for enrollment in enrollments:
+        db.delete(enrollment)
+        total_deleted += 1
+
+    # Delete survey responses
+    surveys = db.query(SurveyResponse).filter(
+        SurveyResponse.student_id == student_id,
+        SurveyResponse.module_id == module_id
+    ).all()
+
+    for survey in surveys:
+        db.delete(survey)
+        total_deleted += 1
+
+    # Delete test submissions
+    submissions = db.query(TestSubmission).filter(
+        TestSubmission.student_id == student_id,
+        TestSubmission.module_id == module_id
+    ).all()
+
+    for submission in submissions:
+        db.delete(submission)
+        total_deleted += 1
+
+    # Delete chat conversations (messages will cascade delete)
+    conversations = db.query(ChatConversation).filter(
+        ChatConversation.student_id == student_id,
+        ChatConversation.module_id == module_id
+    ).all()
+
+    for conversation in conversations:
+        db.delete(conversation)
+        total_deleted += 1
 
     db.commit()
-    return count
+    return total_deleted
