@@ -10,6 +10,48 @@ import { ArrowRight, Brain, Users, BarChart3, Shield, Zap, Github, Star, BookOpe
 import { apiClient } from "@/lib/auth";
 
 export default function Home() {
+  // Add custom animation styles
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      @keyframes float {
+        0%, 100% {
+          transform: translateY(0px);
+        }
+        50% {
+          transform: translateY(-20px);
+        }
+      }
+      @keyframes pulse-glow {
+        0%, 100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+      @keyframes gradient-shift {
+        0%, 100% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
   const { user, loading, isAuthenticated } = useAuth();
   const [modules, setModules] = useState([]);
   const [loadingModules, setLoadingModules] = useState(false);
@@ -46,270 +88,238 @@ export default function Home() {
   }
 
   if (isAuthenticated) {
-    const totalStudents = 0; // Would be calculated from modules data
-    const completionRate = modules.length > 0 ? 85 : 0;
-
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          {/* Enhanced Welcome Header */}
-          <div className="mb-10 relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 dark:from-blue-500/5 dark:via-purple-500/5 dark:to-pink-500/5 rounded-3xl"></div>
-            <div className="relative p-10 rounded-3xl border border-border/50 backdrop-blur-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-6">
-                  <div className="w-20 h-20 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-3xl flex items-center justify-center shadow-2xl">
-                    <Rocket className="w-10 h-10 text-white" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <h1 className="text-4xl font-bold text-foreground">
-                        Welcome back, <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">{user?.username || 'Teacher'}</span>!
-                      </h1>
-                      <div className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-sm font-medium flex items-center gap-1">
-                        <Activity className="w-3 h-3" />
-                        Active
-                      </div>
-                    </div>
-                    <p className="text-lg text-muted-foreground flex items-center gap-2">
-                      <GraduationCap className="w-5 h-5" />
-                      Your AI-powered teaching dashboard • Track, analyze, and inspire
-                    </p>
-                  </div>
-                </div>
-                <Button asChild size="lg" className="shadow-lg hover:shadow-xl transition-all">
-                  <Link href="/mymodules">
-                    <Plus className="w-5 h-5 mr-2" />
-                    Create Module
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 dark:from-gray-950 dark:via-blue-950/10 dark:to-purple-950/10 relative overflow-hidden">
+        {/* Animated Background Elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 left-20 w-72 h-72 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-3xl" style={{animation: 'float 6s ease-in-out infinite'}}></div>
+          <div className="absolute bottom-20 right-20 w-96 h-96 bg-gradient-to-br from-purple-400/20 to-pink-400/20 rounded-full blur-3xl" style={{animation: 'float 8s ease-in-out infinite 1s'}}></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-br from-indigo-400/10 to-cyan-400/10 rounded-full blur-3xl" style={{animation: 'float 10s ease-in-out infinite 2s'}}></div>
+        </div>
 
-          {/* Enhanced Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-            <Card className="border-border bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-xl transition-all">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <CardContent className="p-6 relative">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-14 h-14 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
-                    <BookOpen className="w-7 h-7 text-white" />
-                  </div>
-                  <div className="px-2 py-1 bg-blue-200/50 dark:bg-blue-800/50 rounded-full">
-                    <TrendingUp className="w-3 h-3 text-blue-700 dark:text-blue-300" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">Active Modules</p>
-                  <p className="text-4xl font-bold text-blue-900 dark:text-blue-100">
-                    {loadingModules ? '...' : modules.length}
-                  </p>
-                  <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-1">Learning pathways</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-xl transition-all">
-              <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <CardContent className="p-6 relative">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-14 h-14 bg-green-500 rounded-2xl flex items-center justify-center shadow-lg">
-                    <Users className="w-7 h-7 text-white" />
-                  </div>
-                  <div className="px-2 py-1 bg-green-200/50 dark:bg-green-800/50 rounded-full">
-                    <Activity className="w-3 h-3 text-green-700 dark:text-green-300" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-green-700 dark:text-green-300 mb-1">Total Students</p>
-                  <p className="text-4xl font-bold text-green-900 dark:text-green-100">
-                    {totalStudents}
-                  </p>
-                  <p className="text-xs text-green-600/70 dark:text-green-400/70 mt-1">Enrolled learners</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-xl transition-all">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <CardContent className="p-6 relative">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-14 h-14 bg-purple-500 rounded-2xl flex items-center justify-center shadow-lg">
-                    <Brain className="w-7 h-7 text-white" />
-                  </div>
-                  <div className="px-2 py-1 bg-purple-200/50 dark:bg-purple-800/50 rounded-full">
-                    <Sparkles className="w-3 h-3 text-purple-700 dark:text-purple-300" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-1">AI Insights</p>
-                  <p className="text-4xl font-bold text-purple-900 dark:text-purple-100">
-                    {modules.length * 3}
-                  </p>
-                  <p className="text-xs text-purple-600/70 dark:text-purple-400/70 mt-1">Generated reports</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/30 dark:to-orange-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-xl transition-all">
-              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <CardContent className="p-6 relative">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-14 h-14 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg">
-                    <Target className="w-7 h-7 text-white" />
-                  </div>
-                  <div className="px-2 py-1 bg-orange-200/50 dark:bg-orange-800/50 rounded-full">
-                    <TrendingUp className="w-3 h-3 text-orange-700 dark:text-orange-300" />
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-1">Avg Completion</p>
-                  <p className="text-4xl font-bold text-orange-900 dark:text-orange-100">
-                    {completionRate}%
-                  </p>
-                  <p className="text-xs text-orange-600/70 dark:text-orange-400/70 mt-1">Student progress</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Modules Grid */}
-          <div className="mb-10">
-            <div className="flex items-center justify-between mb-6">
+        <div className="max-w-7xl mx-auto px-6 py-10 relative z-10">
+          {/* Beautiful Header */}
+          <div className="mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
+            <div className="flex items-center justify-between mb-8">
               <div>
-                <h2 className="text-3xl font-bold text-foreground">Your Learning Modules</h2>
-                <p className="text-muted-foreground mt-1">Manage and track your educational content</p>
+                <h1 className="text-5xl md:text-6xl font-extrabold text-gray-900 dark:text-white mb-3 tracking-tight">
+                  Welcome back,
+                  <br />
+                  <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent animate-gradient bg-[length:200%_auto]" style={{animation: 'gradient-shift 3s ease infinite'}}>
+                    {user?.username}
+                  </span>
+                </h1>
+                <p className="text-xl text-gray-600 dark:text-gray-400 font-medium">
+                  ✨ Manage your modules and track student progress
+                </p>
               </div>
-              <Button asChild variant="outline" size="lg">
+              <Button asChild size="lg" className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 shadow-2xl hover:shadow-purple-500/50 transition-all duration-500 hover:scale-110 text-lg px-8 py-6 font-bold bg-[length:200%_auto]" style={{animation: 'gradient-shift 3s ease infinite'}}>
                 <Link href="/mymodules">
-                  View All
-                  <ChevronRight className="w-4 h-4 ml-2" />
+                  <Sparkles className="w-5 h-5 mr-2" />
+                  Create Module
                 </Link>
               </Button>
             </div>
+          </div>
+
+          {/* Beautiful Stats Grid */}
+          <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Main Stat */}
+              <div className="md:col-span-2 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 dark:border-gray-800/50 p-8 hover:shadow-purple-500/20 hover:shadow-3xl transition-all duration-500 hover:scale-[1.02] relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-2xl"></div>
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4" />
+                        Total Modules
+                      </p>
+                      <p className="text-7xl font-black bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+                        {loadingModules ? '...' : modules.length}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Active learning modules</p>
+                    </div>
+                    <div className="w-24 h-24 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-3xl flex items-center justify-center shadow-2xl transform" style={{animation: 'float 3s ease-in-out infinite'}}>
+                      <BookOpen className="w-12 h-12 text-white" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Secondary Stats */}
+              <div className="space-y-6">
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-3xl shadow-2xl p-6 text-white hover:shadow-blue-500/50 transition-all duration-500 hover:scale-105 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                  <div className="relative z-10">
+                    <TrendingUp className="w-8 h-8 mb-3 opacity-80" />
+                    <p className="text-3xl font-bold mb-1">{modules.length > 0 ? '100%' : '0%'}</p>
+                    <p className="text-sm opacity-90 font-medium">Active Rate</p>
+                  </div>
+                </div>
+                <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-3xl shadow-2xl p-6 text-white hover:shadow-pink-500/50 transition-all duration-500 hover:scale-105 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+                  <div className="relative z-10">
+                    <Sparkles className="w-8 h-8 mb-3 opacity-80" />
+                    <p className="text-3xl font-bold mb-1">{modules.length * 5}</p>
+                    <p className="text-sm opacity-90 font-medium">AI Insights</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Modules Section */}
+          <div className="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-4xl font-black text-gray-900 dark:text-white mb-2">Your Modules</h2>
+                <p className="text-lg text-gray-600 dark:text-gray-400">Manage and explore your learning modules</p>
+              </div>
+              {modules.length > 0 && (
+                <Link href="/mymodules" className="px-6 py-3 rounded-xl bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border border-gray-200 dark:border-gray-800 text-sm font-bold text-gray-900 dark:text-white hover:bg-white dark:hover:bg-gray-900 hover:shadow-xl transition-all duration-300 hover:scale-105 flex items-center gap-2">
+                  View all
+                  <ChevronRight className="w-4 h-4" />
+                </Link>
+              )}
+            </div>
 
             {loadingModules ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[1, 2, 3].map((i) => (
-                  <Card key={i} className="border-border bg-card/50 backdrop-blur-sm">
-                    <CardContent className="p-6">
-                      <div className="animate-pulse space-y-4">
-                        <div className="w-12 h-12 bg-muted rounded-xl"></div>
-                        <div className="h-6 bg-muted rounded w-2/3"></div>
-                        <div className="h-4 bg-muted rounded w-full"></div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <div key={i} className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 dark:border-gray-800/50 p-8">
+                    <div className="animate-pulse space-y-4">
+                      <div className="h-8 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-800 dark:to-gray-700 rounded-xl w-2/3"></div>
+                      <div className="h-5 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-800 dark:to-gray-700 rounded-lg w-full"></div>
+                      <div className="h-5 bg-gradient-to-r from-gray-200 to-gray-300 dark:from-gray-800 dark:to-gray-700 rounded-lg w-4/5"></div>
+                    </div>
+                  </div>
                 ))}
               </div>
             ) : modules.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {modules.slice(0, 6).map((moduleItem, index) => (
-                  <Card key={moduleItem.id} className="border-border bg-card/50 backdrop-blur-sm shadow-md hover:shadow-xl transition-all group cursor-pointer">
-                    <CardContent className="p-6">
-                      <Link href={`/dashboard?module=${encodeURIComponent(moduleItem.name)}`}>
-                        <div className="flex items-start justify-between mb-4">
-                          <div className={`w-14 h-14 bg-gradient-to-br ${
-                            index % 4 === 0 ? 'from-blue-500 to-blue-600' :
-                            index % 4 === 1 ? 'from-green-500 to-green-600' :
-                            index % 4 === 2 ? 'from-purple-500 to-purple-600' :
-                            'from-orange-500 to-orange-600'
-                          } rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform`}>
-                            <BookOpen className="w-7 h-7 text-white" />
+                  <Link
+                    key={moduleItem.id}
+                    href={`/dashboard?module=${encodeURIComponent(moduleItem.name)}`}
+                    className="group"
+                    style={{
+                      animation: `fadeInUp 0.6s ease-out ${index * 0.1}s backwards`
+                    }}
+                  >
+                    <div className="relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 dark:border-gray-800/50 p-8 h-full hover:shadow-purple-500/30 hover:shadow-3xl hover:scale-105 transition-all duration-500 hover:-translate-y-2 cursor-pointer overflow-hidden group">
+                      {/* Decorative gradient overlay */}
+                      <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br ${
+                        index % 4 === 0 ? 'from-blue-500/10 to-purple-500/10' :
+                        index % 4 === 1 ? 'from-purple-500/10 to-pink-500/10' :
+                        index % 4 === 2 ? 'from-pink-500/10 to-orange-500/10' :
+                        'from-indigo-500/10 to-cyan-500/10'
+                      } rounded-3xl`}></div>
+
+                      <div className="relative z-10">
+                        <div className="flex items-start justify-between mb-6">
+                          <div className={`w-16 h-16 ${
+                            index % 4 === 0 ? 'bg-gradient-to-br from-blue-500 via-blue-600 to-purple-600' :
+                            index % 4 === 1 ? 'bg-gradient-to-br from-purple-500 via-purple-600 to-pink-600' :
+                            index % 4 === 2 ? 'bg-gradient-to-br from-pink-500 via-pink-600 to-orange-600' :
+                            'bg-gradient-to-br from-indigo-500 via-indigo-600 to-cyan-600'
+                          } rounded-2xl flex items-center justify-center shadow-2xl group-hover:scale-110 group-hover:rotate-6 transition-all duration-500`}>
+                            <BookOpen className="w-8 h-8 text-white" />
                           </div>
-                          <Badge variant="secondary" className="text-xs">Active</Badge>
+                          <Badge className="bg-gradient-to-r from-green-400 to-emerald-500 text-white border-0 shadow-lg px-3 py-1 font-bold">
+                            ✨ Active
+                          </Badge>
                         </div>
-                        <h3 className="text-xl font-bold text-foreground mb-2 group-hover:text-primary transition-colors">
+                        <h3 className="text-2xl font-black text-gray-900 dark:text-white mb-3 group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300">
                           {moduleItem.name}
                         </h3>
-                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                        <p className="text-base text-gray-600 dark:text-gray-400 line-clamp-2 leading-relaxed">
                           {moduleItem.description || 'No description available'}
                         </p>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Users className="w-4 h-4" />
-                            <span>0 students</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <FileText className="w-4 h-4" />
-                            <span>0 docs</span>
-                          </div>
-                        </div>
-                      </Link>
-                    </CardContent>
-                  </Card>
+                      </div>
+                    </div>
+                  </Link>
                 ))}
               </div>
             ) : (
-              <Card className="border-dashed border-2 bg-card/30">
-                <CardContent className="text-center py-20">
-                  <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
-                    <Rocket className="w-12 h-12 text-white" />
+              <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-3xl border-2 border-dashed border-gray-300 dark:border-gray-700 p-16 text-center relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-full blur-3xl"></div>
+                <div className="relative z-10">
+                  <div className="w-32 h-32 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl" style={{animation: 'float 4s ease-in-out infinite'}}>
+                    <Rocket className="w-16 h-16 text-white" />
                   </div>
-                  <h3 className="text-2xl font-bold text-foreground mb-3">
-                    Ready to start your teaching journey?
+                  <h3 className="text-4xl font-black text-gray-900 dark:text-white mb-4">
+                    Create your first module
                   </h3>
-                  <p className="text-muted-foreground mb-8 max-w-md mx-auto text-lg">
-                    Create your first learning module to start tracking student progress and generating AI-powered insights.
+                  <p className="text-xl text-gray-600 dark:text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
+                    Get started by creating a learning module to track student progress and generate AI insights.
                   </p>
-                  <Button asChild size="lg" className="shadow-lg hover:shadow-xl">
+                  <Button asChild size="lg" className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-700 hover:via-purple-700 hover:to-pink-700 shadow-2xl hover:shadow-purple-500/50 transition-all duration-500 hover:scale-110 text-lg px-10 py-7 font-bold">
                     <Link href="/mymodules">
-                      <Plus className="mr-2 w-5 h-5" />
+                      <Sparkles className="mr-3 w-6 h-6" />
                       Create Your First Module
                     </Link>
                   </Button>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             )}
           </div>
 
           {/* Quick Actions */}
-          <Card className="shadow-lg border-border bg-card/50 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                <Zap className="w-6 h-6 text-primary" />
-                Quick Actions
-              </CardTitle>
-              <CardDescription className="text-base">Jump to common tasks and shortcuts</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-500 transition-all group">
-                  <Link href="/mymodules">
-                    <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center group-hover:bg-blue-500 transition-colors">
-                      <BookOpen className="w-6 h-6 text-blue-600 dark:text-blue-400 group-hover:text-white transition-colors" />
-                    </div>
-                    <span className="text-sm font-medium">My Modules</span>
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-500 transition-all group" disabled={modules.length === 0}>
-                  <Link href={modules.length > 0 ? `/dashboard/students` : "/mymodules"}>
-                    <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center group-hover:bg-green-500 transition-colors">
-                      <Users className="w-6 h-6 text-green-600 dark:text-green-400 group-hover:text-white transition-colors" />
-                    </div>
-                    <span className="text-sm font-medium">Students</span>
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-purple-50 dark:hover:bg-purple-950/30 hover:border-purple-500 transition-all group" disabled={modules.length === 0}>
-                  <Link href={modules.length > 0 ? `/dashboard/analytics` : "/mymodules"}>
-                    <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center group-hover:bg-purple-500 transition-colors">
-                      <BarChart3 className="w-6 h-6 text-purple-600 dark:text-purple-400 group-hover:text-white transition-colors" />
-                    </div>
-                    <span className="text-sm font-medium">Analytics</span>
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" className="h-auto py-6 flex-col gap-3 hover:bg-orange-50 dark:hover:bg-orange-950/30 hover:border-orange-500 transition-all group" disabled={modules.length === 0}>
-                  <Link href={modules.length > 0 ? `/dashboard/documents` : "/mymodules"}>
-                    <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center group-hover:bg-orange-500 transition-colors">
-                      <FileText className="w-6 h-6 text-orange-600 dark:text-orange-400 group-hover:text-white transition-colors" />
-                    </div>
-                    <span className="text-sm font-medium">Documents</span>
-                  </Link>
-                </Button>
+          {modules.length > 0 && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 delay-500">
+              <div className="mb-8">
+                <h3 className="text-4xl font-black text-gray-900 dark:text-white mb-2">Quick Actions</h3>
+                <p className="text-lg text-gray-600 dark:text-gray-400">Jump to frequently used sections</p>
               </div>
-            </CardContent>
-          </Card>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <Link href="/mymodules" className="group">
+                  <div className="relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-gray-800/50 p-8 hover:shadow-blue-500/30 hover:shadow-3xl hover:scale-110 transition-all duration-500 overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    <div className="relative z-10">
+                      <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mb-5 shadow-2xl group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
+                        <BookOpen className="w-8 h-8 text-white" />
+                      </div>
+                      <p className="text-xl font-black text-gray-900 dark:text-white group-hover:bg-gradient-to-r group-hover:from-blue-600 group-hover:to-purple-600 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300">Modules</p>
+                    </div>
+                  </div>
+                </Link>
+                <Link href="/dashboard/students" className="group">
+                  <div className="relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-gray-800/50 p-8 hover:shadow-purple-500/30 hover:shadow-3xl hover:scale-110 transition-all duration-500 overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-pink-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    <div className="relative z-10">
+                      <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center mb-5 shadow-2xl group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
+                        <Users className="w-8 h-8 text-white" />
+                      </div>
+                      <p className="text-xl font-black text-gray-900 dark:text-white group-hover:bg-gradient-to-r group-hover:from-purple-600 group-hover:to-pink-600 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300">Students</p>
+                    </div>
+                  </div>
+                </Link>
+                <Link href="/dashboard/analytics" className="group">
+                  <div className="relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-gray-800/50 p-8 hover:shadow-pink-500/30 hover:shadow-3xl hover:scale-110 transition-all duration-500 overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-orange-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    <div className="relative z-10">
+                      <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-orange-600 rounded-2xl flex items-center justify-center mb-5 shadow-2xl group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
+                        <BarChart3 className="w-8 h-8 text-white" />
+                      </div>
+                      <p className="text-xl font-black text-gray-900 dark:text-white group-hover:bg-gradient-to-r group-hover:from-pink-600 group-hover:to-orange-600 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300">Analytics</p>
+                    </div>
+                  </div>
+                </Link>
+                <Link href="/dashboard/documents" className="group">
+                  <div className="relative bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl rounded-2xl shadow-2xl border border-white/20 dark:border-gray-800/50 p-8 hover:shadow-indigo-500/30 hover:shadow-3xl hover:scale-110 transition-all duration-500 overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    <div className="relative z-10">
+                      <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-cyan-600 rounded-2xl flex items-center justify-center mb-5 shadow-2xl group-hover:scale-110 group-hover:rotate-6 transition-all duration-500">
+                        <FileText className="w-8 h-8 text-white" />
+                      </div>
+                      <p className="text-xl font-black text-gray-900 dark:text-white group-hover:bg-gradient-to-r group-hover:from-indigo-600 group-hover:to-cyan-600 group-hover:bg-clip-text group-hover:text-transparent transition-all duration-300">Documents</p>
+                    </div>
+                  </div>
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -338,26 +348,26 @@ export default function Home() {
                 MIT License
               </Badge>
             </div>
-            
+
             {/* Hero Headline */}
-            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-slate-900 dark:text-white mb-8 leading-none">
+            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold text-slate-900 dark:text-white mb-8 leading-tight tracking-tight">
               <span className="block">The Future of</span>
               <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 dark:from-blue-400 dark:via-purple-400 dark:to-indigo-400">
                 AI Education
               </span>
             </h1>
-            
+
             {/* Enhanced Subtitle */}
-            <p className="text-xl sm:text-2xl text-slate-600 dark:text-slate-300 max-w-4xl mx-auto mb-12 leading-relaxed">
-              Open source platform empowering educators with cutting-edge AI analytics, real-time insights, and personalized learning experiences. 
-              <span className="font-semibold text-slate-700 dark:text-slate-200">Free forever, community-driven, and built for everyone.</span>
+            <p className="text-xl sm:text-2xl text-slate-600 dark:text-slate-300 max-w-4xl mx-auto mb-12 leading-relaxed font-normal">
+              Open source platform empowering educators with cutting-edge AI analytics, real-time insights, and personalized learning experiences.
+              <span className="font-medium text-slate-700 dark:text-slate-200"> Free forever, community-driven, and built for everyone.</span>
             </p>
-            
+
             {/* Enhanced CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-              <Button 
-                asChild 
-                size="lg" 
+              <Button
+                asChild
+                size="lg"
                 className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white px-10 py-6 text-lg font-semibold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
               >
                 <Link href="/sign-in" className="inline-flex items-center">
@@ -366,10 +376,10 @@ export default function Home() {
                   <ArrowRight className="ml-3 w-5 h-5" />
                 </Link>
               </Button>
-              <Button 
-                asChild 
-                variant="outline" 
-                size="lg" 
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
                 className="px-10 py-6 text-lg font-semibold rounded-xl border-2 border-slate-300 dark:border-slate-600 hover:border-green-500 dark:hover:border-green-400 backdrop-blur-sm bg-white/50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-700 transition-all duration-300"
               >
                 <Link href="https://github.com" target="_blank" className="inline-flex items-center">
@@ -386,15 +396,15 @@ export default function Home() {
                 <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Users className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2 tracking-tight">
                   Are you a student?
                 </h3>
-                <p className="text-lg text-slate-600 dark:text-slate-300 mb-6 max-w-2xl mx-auto">
+                <p className="text-base text-slate-600 dark:text-slate-300 mb-6 max-w-2xl mx-auto font-normal leading-relaxed">
                   Join a learning module with an access code from your instructor and start taking tests, accessing materials, and tracking your progress.
                 </p>
-                <Button 
-                  asChild 
-                  size="lg" 
+                <Button
+                  asChild
+                  size="lg"
                   className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-8 py-4 text-lg font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
                 >
                   <Link href="/join" className="inline-flex items-center">
@@ -469,13 +479,13 @@ export default function Home() {
             <Sparkles className="w-4 h-4 mr-2" />
             Platform Features
           </Badge>
-          <h2 className="text-4xl sm:text-5xl font-black text-slate-900 dark:text-white mb-6">
+          <h2 className="text-4xl sm:text-5xl font-bold text-slate-900 dark:text-white mb-6 tracking-tight">
             Everything you need to
             <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
               revolutionize education
             </span>
           </h2>
-          <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto">
+          <p className="text-xl text-slate-600 dark:text-slate-300 max-w-3xl mx-auto font-normal leading-relaxed">
             Cutting-edge AI technology meets intuitive design to deliver unprecedented educational insights and outcomes.
           </p>
         </div>
@@ -542,10 +552,10 @@ export default function Home() {
                 <div className="mb-6">
                   {feature.icon}
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-3 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors tracking-tight">
                   {feature.title}
                 </h3>
-                <p className="text-slate-600 dark:text-slate-300 mb-6 leading-relaxed">
+                <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 leading-relaxed font-normal">
                   {feature.description}
                 </p>
                 <ul className="space-y-2">
@@ -565,28 +575,28 @@ export default function Home() {
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-green-900 to-emerald-900 p-12 md:p-20 text-center">
           {/* Background Pattern */}
           <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,.1)_25%,rgba(255,255,255,.1)_50%,transparent_50%,transparent_75%,rgba(255,255,255,.1)_75%,rgba(255,255,255,.1))] bg-[length:20px_20px] opacity-20"></div>
-          
+
           <div className="relative z-10">
             <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm text-white px-6 py-3 rounded-full text-sm font-semibold mb-8 border border-white/20">
               <Github className="w-4 h-4" />
               Join the Open Source Education Revolution
             </div>
-            
-            <h3 className="text-4xl md:text-5xl font-black text-white mb-6">
+
+            <h3 className="text-4xl md:text-5xl font-bold text-white mb-6 tracking-tight">
               Start using AI Education Pilot
               <span className="block text-transparent bg-clip-text bg-gradient-to-r from-green-300 to-emerald-300">
                 completely free, forever
               </span>
             </h3>
-            
-            <p className="text-xl text-green-100 mb-10 max-w-3xl mx-auto leading-relaxed">
+
+            <p className="text-lg text-green-100 mb-10 max-w-3xl mx-auto leading-relaxed font-normal">
               Download, deploy, and customize this open source platform. No accounts, no payments, no limitations.
             </p>
-            
+
             <div className="flex flex-col sm:flex-row gap-6 justify-center items-center mb-10">
-              <Button 
-                asChild 
-                size="lg" 
+              <Button
+                asChild
+                size="lg"
                 className="bg-white text-slate-900 hover:bg-green-50 px-10 py-6 text-lg font-bold rounded-xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
               >
                 <Link href="/sign-up" className="inline-flex items-center">
@@ -595,11 +605,11 @@ export default function Home() {
                   <ArrowRight className="ml-3 w-5 h-5" />
                 </Link>
               </Button>
-              
-              <Button 
-                asChild 
-                size="lg" 
-                variant="outline" 
+
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
                 className="px-10 py-6 text-lg font-semibold rounded-xl border-2 border-white/30 text-white hover:bg-white/10 backdrop-blur-sm transition-all duration-300"
               >
                 <Link href="https://github.com" target="_blank" className="inline-flex items-center">
@@ -609,7 +619,7 @@ export default function Home() {
                 </Link>
               </Button>
             </div>
-            
+
             <div className="flex flex-wrap justify-center items-center gap-8 text-sm text-green-200">
               <div className="flex items-center gap-2">
                 <Github className="w-4 h-4 text-green-400" />
@@ -705,6 +715,3 @@ export default function Home() {
     </div>
   );
 }
-
-
-
